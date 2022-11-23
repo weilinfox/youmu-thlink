@@ -155,7 +155,7 @@ func handleTcpTunnel(clientPort int, hostListener *net.TCPListener, serveListene
 	}()
 	defer logger.Infof("End tcp peer %d-%d", clientPort, peers[clientPort])
 
-	_ = hostListener.SetDeadline(time.Now().Add(time.Second + 10))
+	_ = hostListener.SetDeadline(time.Now().Add(time.Second * 10))
 
 	defer hostListener.Close()
 	defer serveListener.Close()
@@ -245,7 +245,7 @@ func handleUdpTunnel(clientPort int, hostListener *net.TCPListener, serveConn *n
 	}()
 	defer logger.Infof("End udp peer %d-%d", clientPort, peers[clientPort])
 
-	_ = hostListener.SetDeadline(time.Now().Add(time.Second + 10))
+	_ = hostListener.SetDeadline(time.Now().Add(time.Second * 10))
 
 	defer hostListener.Close()
 	defer serveConn.Close()
