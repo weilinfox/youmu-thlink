@@ -8,15 +8,17 @@ import (
 )
 
 const (
-	serverHost = "localhost"
-	dileHost   = serverHost + ":4646"
-	localHost  = "localhost:10800"
+	serverHost = "inuyasha.love"
+	serverPort = 4646
+	// 花 17723 则 10800
+	localPort = 17723
 )
 
 var logger = logrus.WithField("client", "internal")
 
 func main() {
 
+	dileHost := serverHost + ":" + strconv.Itoa(serverPort)
 	serverAddr, _ := net.ResolveTCPAddr("tcp4", dileHost)
 	conn, err := net.DialTCP("tcp4", nil, serverAddr)
 
@@ -70,7 +72,7 @@ func main() {
 	_ = conn.SetKeepAlive(true)
 	defer conn.Close()
 
-	logger.Infof("Tunnel established on remote port %d", port2)
+	logger.Infof("Tunnel established on remote "+serverAddr.IP.String()+":%d", port2)
 	handleUdp(conn)
 }
 
@@ -107,6 +109,7 @@ func handleUdp(serverConn *net.TCPConn) {
 			ch <- 1
 		}()
 
+		localHost := "localhost:" + strconv.Itoa(localPort)
 		udpAddr, _ := net.ResolveUDPAddr("udp4", localHost)
 
 		for {
