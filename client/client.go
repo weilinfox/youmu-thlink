@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"net"
 	"strconv"
@@ -10,13 +11,28 @@ import (
 const (
 	serverHost = "inuyasha.love"
 	serverPort = 4646
-	// 花 17723 则 10800
-	localPort = 17723
 )
 
 var logger = logrus.WithField("client", "internal")
+var localPort int
 
 func main() {
+
+	var port string
+	// 花 17723 则 10800
+	fmt.Println("Input local port (th09: 17723, th12.3:10800)")
+	n, err := fmt.Scanln(&port)
+	if err != nil || n == 0 {
+		logger.WithError(err).Fatal("Cannot get input port")
+	}
+
+	localPort64, err := strconv.ParseInt(port, 10, 32)
+	localPort = int(localPort64)
+	if localPort <= 0 || localPort > 65535 {
+		logger.Fatal("Invalid port ", localPort)
+	}
+
+	logger.Info("Will connect to local udp port ", localPort)
 
 	dileHost := serverHost + ":" + strconv.Itoa(serverPort)
 	serverAddr, _ := net.ResolveTCPAddr("tcp4", dileHost)
@@ -52,7 +68,7 @@ func main() {
 
 	logger.Info("Ask for new udp tunnel")
 	conn.Write([]byte{0x02, 'u'})
-	n, _ := conn.Read(buf)
+	n, _ = conn.Read(buf)
 
 	if buf[0] != 0x02 || n >= 512 {
 		logger.Fatal("Invalid response from server")
@@ -74,6 +90,7 @@ func main() {
 
 	logger.Infof("Tunnel established on remote "+serverAddr.IP.String()+":%d", port2)
 	handleUdp(conn)
+
 }
 
 func handleUdp(serverConn *net.TCPConn) {
