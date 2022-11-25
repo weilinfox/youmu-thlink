@@ -295,17 +295,20 @@ func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.
 				var n int
 				buf := make([]byte, KcpBufSize)
 				kConn, err = hostListener.AcceptKCP()
-				n, err = kConn.Read(buf)
 				if err == nil {
-					if n != 1 || buf[0] != 0x01 {
-						err = errors.New("invalid kcp connection, close it")
-						kConn.Close()
-						kConn = nil
-					} else {
-						logger.Info("Client KCP tunnel connected")
+					n, err = kConn.Read(buf)
+					if err == nil {
+						if n != 1 || buf[0] != 0x01 {
+							err = errors.New("invalid kcp connection, close it")
+							kConn.Close()
+							kConn = nil
+						} else {
+							logger.WithField("host", kConn.RemoteAddr()).Info("Client KCP tunnel connected")
+						}
 					}
 				}
 			}()
+
 		default:
 			if kConn == nil && err == nil {
 				time.Sleep(time.Millisecond)

@@ -12,10 +12,15 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
+const (
+	serverHost    = "localhost"
+	serverAddress = serverHost + ":4646"
+)
+
 func TestRun(t *testing.T) {
 	t.Log("Run broker")
 	go Main("127.0.0.1:4646")
-	time.Sleep(time.Second)
+	//time.Sleep(time.Second)
 }
 
 func TestLongData(t *testing.T) {
@@ -27,7 +32,7 @@ func TestLongData(t *testing.T) {
 		buf[i] = byte(i)
 	}
 
-	serveTcpAddr, _ := net.ResolveTCPAddr("tcp4", "127.0.0.1:4646")
+	serveTcpAddr, _ := net.ResolveTCPAddr("tcp4", serverAddress)
 	for i := 5; i >= 0; i-- {
 		conn, err := net.DialTCP("tcp4", nil, serveTcpAddr)
 		if err != nil {
@@ -48,7 +53,7 @@ func TestLongData(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	serveTcpAddr, _ := net.ResolveTCPAddr("tcp4", "127.0.0.1:4646")
+	serveTcpAddr, _ := net.ResolveTCPAddr("tcp4", serverAddress)
 	conn, err := net.DialTCP("tcp4", nil, serveTcpAddr)
 	if err != nil {
 		t.Fatal("Fail to connect to server: ", err.Error())
@@ -81,7 +86,7 @@ func TestPing(t *testing.T) {
 }
 
 func TestUDP(t *testing.T) {
-	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", "127.0.0.1:4646")
+	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", serverAddress)
 	conn, err := net.DialTCP("tcp4", nil, brokerTcpAddr)
 	if err != nil {
 		t.Fatal("Fail to connect to server: ", err.Error())
@@ -114,12 +119,12 @@ func TestUDP(t *testing.T) {
 
 	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
 	block, _ := kcp.NewAESBlockCrypt(key)
-	kSess, err := kcp.DialWithOptions("localhost:"+strconv.Itoa(port1), block, 10, 3)
+	kSess, err := kcp.DialWithOptions(serverHost+":"+strconv.Itoa(port1), block, 10, 3)
 	if err != nil {
 		t.Fatal("KCP connection failed")
 	}
 	defer kSess.Close()
-	serveUdpAddr, _ := net.ResolveUDPAddr("udp", "localhost:"+strconv.Itoa(port2))
+	serveUdpAddr, _ := net.ResolveUDPAddr("udp", serverHost+":"+strconv.Itoa(port2))
 	uConn, err := net.DialUDP("udp", nil, serveUdpAddr)
 	if err != nil {
 		t.Fatal("UDP connection failed")
