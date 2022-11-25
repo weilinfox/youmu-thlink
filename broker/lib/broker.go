@@ -23,11 +23,11 @@ var peers = make(map[int]int)
 
 func Main(listenAddr string) {
 
-	tcpAddr, _ := net.ResolveTCPAddr("tcp", listenAddr)
+	tcpAddr, _ := net.ResolveTCPAddr("tcp4", listenAddr)
 
 	// start udp command interface
 	logger.Info("Start tcp command interface at " + tcpAddr.String())
-	listener, err := net.ListenTCP("tcp", tcpAddr)
+	listener, err := net.ListenTCP("tcp4", tcpAddr)
 	if err != nil {
 		logger.WithError(err).Fatal("Adddress listen failed")
 	}
@@ -137,7 +137,7 @@ func newTcpTunnel(hostIP string) (int, int, error) {
 // start new udp tunnel
 func newUdpTunnel(hostIP string) (int, int, error) {
 
-	serveUdpAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
+	serveUdpAddr, err := net.ResolveUDPAddr("udp4", "0.0.0.0:0")
 
 	// kcp tunnel between broker and client
 	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
@@ -146,11 +146,13 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	serveConn, err := net.ListenUDP("udp", serveUdpAddr)
+	logger.Info("KCP listen at ", hostListener.Addr().String())
+	serveConn, err := net.ListenUDP("udp4", serveUdpAddr)
 	if err != nil {
 		_ = hostListener.Close()
 		return 0, 0, err
 	}
+	logger.Info("UDP listen at ", serveConn.LocalAddr().String())
 
 	_, hostPort, _ := net.SplitHostPort(hostListener.Addr().String())
 	_, servePort, _ := net.SplitHostPort(serveConn.LocalAddr().String())

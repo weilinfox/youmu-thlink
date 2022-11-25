@@ -25,8 +25,8 @@ func Main(locPort int, serverHost string, serverPort int) {
 	logger.Info("Will connect to local port ", localPort)
 	logger.Info("Will connect to broker address ", dileHost)
 
-	serverAddr, _ := net.ResolveTCPAddr("tcp", dileHost)
-	conn, err := net.DialTCP("tcp", nil, serverAddr)
+	serverAddr, _ := net.ResolveTCPAddr("tcp4", dileHost)
+	conn, err := net.DialTCP("tcp4", nil, serverAddr)
 
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot connect to broker")
@@ -52,7 +52,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 
 	// new udp tunnel
 	logger.Info("Ask for new udp tunnel")
-	conn, err = net.DialTCP("tcp", nil, serverAddr)
+	conn, err = net.DialTCP("tcp4", nil, serverAddr)
 	conn.Write([]byte{0x02, 'u'})
 	n, _ := conn.Read(buf)
 
