@@ -21,11 +21,11 @@ var peers = make(map[int]int)
 
 func Main(listenAddr string) {
 
-	udpAddr, _ := net.ResolveUDPAddr("udp", listenAddr)
+	tcpAddr, _ := net.ResolveTCPAddr("tcp", listenAddr)
 
 	// start udp command interface
-	logger.Info("Start udp command interface at " + udpAddr.String())
-	listener, err := net.ListenUDP("udp", udpAddr)
+	logger.Info("Start tcp command interface at " + tcpAddr.String())
+	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		logger.WithError(err).Fatal("Adddress listen failed")
 	}
@@ -34,14 +34,21 @@ func Main(listenAddr string) {
 	for {
 
 		buf := make([]byte, CmdBufSize)
-		n, remoteAddr, err := listener.ReadFromUDP(buf)
+		conn, err := listener.Accept()
 		if err != nil {
-			logger.WithError(err).Error("UDP read failed")
+			logger.WithError(err).Error("TCP listen error")
+			continue
+		}
+		n, err := conn.Read(buf)
+		if err != nil {
+			logger.WithError(err).Error("TCP read failed")
+			conn.Close()
 			continue
 		}
 
 		if n >= CmdBufSize {
 			logger.Warn("Command data too long!")
+			conn.Close()
 			continue
 		}
 
@@ -50,7 +57,7 @@ func Main(listenAddr string) {
 			switch buf[0] {
 			case 0x01:
 				// ping
-				_, err := listener.WriteToUDP([]byte{0x01}, remoteAddr)
+				_, err := conn.Write([]byte{0x01})
 
 				if err != nil {
 					logger.WithError(err).Error("Send response failed")
@@ -64,28 +71,32 @@ func Main(listenAddr string) {
 
 				switch buf[1] {
 				case 't':
-					logger.WithField("host", remoteAddr.String()).Info("New tcp tunnel")
-					port1, port2, err = newTcpTunnel(remoteAddr.IP.String())
+					logger.WithField("host", conn.RemoteAddr().String()).Info("New tcp tunnel")
+					host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+					port1, port2, err = newTcpTunnel(host)
 				case 'u':
-					logger.WithField("host", remoteAddr.String()).Info("New udp tunnel")
-					port1, port2, err = newUdpTunnel(remoteAddr.IP.String())
+					logger.WithField("host", conn.RemoteAddr().String()).Info("New udp tunnel")
+					host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+					port1, port2, err = newUdpTunnel(host)
 				default:
 					logger.Warn("Invalid tunnel type")
 				}
 
 				if err != nil {
 					logger.WithError(err).Error("Failed to build new tunnel")
-				} else if port1 != 0 && port2 != 0 {
-					_, err = listener.WriteToUDP([]byte{0x02, byte(port1 >> 8), byte(port1), byte(port2 >> 8), byte(port2)}, remoteAddr)
+				}
 
-					if err != nil {
-						logger.WithError(err).Error("Send response failed")
-					}
+				_, err = conn.Write([]byte{0x02, byte(port1 >> 8), byte(port1), byte(port2 >> 8), byte(port2)})
+
+				if err != nil {
+					logger.WithError(err).Error("Send response failed")
 				}
 
 			default:
 				logger.Warn("Command data invalid")
 			}
+
+			_ = conn.Close()
 
 		}()
 
@@ -127,7 +138,7 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 	serveUdpAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
 
 	// kcp tunnel between broker and client
-	hostListener, err := kcp.Listen(hostIP + ":0")
+	hostListener, err := kcp.Listen("0.0.0.0:0")
 	if err != nil {
 		return 0, 0, err
 	}

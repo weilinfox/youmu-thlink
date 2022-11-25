@@ -22,8 +22,8 @@ func Main(locPort int, serverHost string, serverPort int) {
 	logger.Info("Will connect to local port ", localPort)
 	logger.Info("Will connect to broker address ", dileHost)
 
-	serverAddr, _ := net.ResolveUDPAddr("udp", dileHost)
-	conn, err := net.DialUDP("udp", nil, serverAddr)
+	serverAddr, _ := net.ResolveTCPAddr("tcp", dileHost)
+	conn, err := net.DialTCP("tcp", nil, serverAddr)
 
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot connect to broker")
@@ -37,10 +37,10 @@ func Main(locPort int, serverHost string, serverPort int) {
 	for i := 5; i >= 0; i-- {
 		timeSend := time.Now()
 		conn.Write([]byte{0x01})
-		conn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
-		n, _ := conn.Read(buf)
+		_, _ = conn.Read(buf)
+		conn.Close()
 		timeResp := time.Now()
-		if buf[0] != 0x01 || n != 1 {
+		if buf[0] != 0x01 {
 			logger.Fatal("Invalid ping response from server")
 		}
 		delay += timeResp.Sub(timeSend).Milliseconds()
@@ -49,6 +49,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 
 	// new udp tunnel
 	logger.Info("Ask for new udp tunnel")
+	conn, err = net.DialTCP("tcp", nil, serverAddr)
 	conn.Write([]byte{0x02, 'u'})
 	n, _ := conn.Read(buf)
 
@@ -60,6 +61,9 @@ func Main(locPort int, serverHost string, serverPort int) {
 	var port1, port2 int
 	port1 = int(buf[1])<<8 + int(buf[2])
 	port2 = int(buf[3])<<8 + int(buf[4])
+	if port1 <= 0 || port1 > 65535 || port2 <= 0 || port2 > 65535 {
+		logger.Fatal("Invalid port peer ", port1, port2)
+	}
 
 	// connect to broker
 	kConn, err := kcp.Dial(serverHost + ":" + strconv.Itoa(port1))
@@ -101,8 +105,8 @@ func handleUdp(serverConn net.Conn) {
 
 			p, err := udpConn.Write(buf[:n])
 			if err != nil || p != n {
-				logger.WithError(err).Warn("Send data to game error or send count not match")
-				break
+				// logger.WithError(err).Warn("Send data to game error or send count not match")
+				continue
 			}
 		}
 	}()

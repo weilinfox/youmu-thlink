@@ -24,9 +24,9 @@ func TestLongData(t *testing.T) {
 		buf[i] = byte(i)
 	}
 
-	serveUdpAddr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:4646")
+	serveTcpAddr, _ := net.ResolveTCPAddr("tcp4", "127.0.0.1:4646")
 	for i := 5; i >= 0; i-- {
-		conn, err := net.DialUDP("udp4", nil, serveUdpAddr)
+		conn, err := net.DialTCP("tcp4", nil, serveTcpAddr)
 		if err != nil {
 			t.Fatal("Fail to connect to server: ", err.Error())
 		}
@@ -45,8 +45,8 @@ func TestLongData(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	serveUdpAddr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:4646")
-	conn, err := net.DialUDP("udp4", nil, serveUdpAddr)
+	serveTcpAddr, _ := net.ResolveTCPAddr("tcp4", "127.0.0.1:4646")
+	conn, err := net.DialTCP("tcp4", nil, serveTcpAddr)
 	if err != nil {
 		t.Fatal("Fail to connect to server: ", err.Error())
 	}
@@ -78,8 +78,8 @@ func TestPing(t *testing.T) {
 }
 
 func TestUDP(t *testing.T) {
-	brokerUdpAddr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:4646")
-	conn, err := net.DialUDP("udp4", nil, brokerUdpAddr)
+	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", "127.0.0.1:4646")
+	conn, err := net.DialTCP("tcp4", nil, brokerTcpAddr)
 	if err != nil {
 		t.Fatal("Fail to connect to server: ", err.Error())
 	}
@@ -115,17 +115,17 @@ func TestUDP(t *testing.T) {
 	}
 	defer kConn.Close()
 	serveUdpAddr, _ := net.ResolveUDPAddr("udp", "localhost:"+strconv.Itoa(port2))
-	conn, err = net.DialUDP("udp", nil, serveUdpAddr)
+	uConn, err := net.DialUDP("udp", nil, serveUdpAddr)
 	if err != nil {
 		t.Fatal("UDP connection failed")
 	}
-	defer conn.Close()
+	defer uConn.Close()
 
 	// connect kcp
 	_, err = kConn.Write([]byte{0x01})
 
 	// connect udp
-	_, err = conn.Write([]byte{0x01})
+	_, err = uConn.Write([]byte{0x01})
 	if err != nil {
 		t.Fatal("UDP write failed: ", err)
 	}
@@ -163,8 +163,8 @@ func TestUDP(t *testing.T) {
 
 		time.Sleep(time.Millisecond * 10)
 		for i := 0; i < 5; i++ {
-			conn.SetReadDeadline(time.Now().Add(time.Second))
-			n, err := conn.Read(buf)
+			uConn.SetReadDeadline(time.Now().Add(time.Second))
+			n, err := uConn.Read(buf)
 			if n != 1 || err != nil {
 				t.Error("Error read from udp: "+err.Error()+" count ", strconv.Itoa(n))
 				continue
@@ -184,8 +184,4 @@ func TestUDP(t *testing.T) {
 	} else {
 		t.Log("Write read bytes matched")
 	}
-}
-
-func TestWait(t *testing.T) {
-	time.Sleep(time.Second)
 }
