@@ -149,21 +149,26 @@ func TestUDP(t *testing.T) {
 
 	var writeCnt, readCnt int
 	var wg sync.WaitGroup
+
 	wg.Add(2)
 	go func() {
 
 		defer wg.Done()
 
-		for i := 0; i < 5; i++ {
-			n, err := kSess.Write([]byte{byte(i)})
-			if err != nil {
-				t.Error("KCP write failed: ", err)
+		buf := make([]byte, KcpBufSize)
+
+		time.Sleep(time.Millisecond * 10)
+		for i := 0; i < 100; i++ {
+			kSess.SetReadDeadline(time.Now().Add(time.Second))
+			n, err := kSess.Read(buf)
+			if err != nil || n != KcpBufSize/2 {
+				t.Error("Error read from kcp: ", err, " count ", strconv.Itoa(n))
 				continue
 			}
-			writeCnt += n
+			readCnt += n
 		}
 
-		t.Log("KCP send pass")
+		t.Log("KCP resv finish")
 
 	}()
 
@@ -171,27 +176,79 @@ func TestUDP(t *testing.T) {
 
 		defer wg.Done()
 
-		time.Sleep(time.Millisecond * 10)
-		for i := 0; i < 5; i++ {
-			uConn.SetReadDeadline(time.Now().Add(time.Second))
-			n, err := uConn.Read(buf)
-			if n != 1 || err != nil {
-				t.Error("Error read from udp: "+err.Error()+" count ", strconv.Itoa(n))
+		buf := make([]byte, KcpBufSize/2)
+
+		for i := 0; i < 100; i++ {
+			n, err := uConn.Write(buf)
+			if n != KcpBufSize/2 || err != nil {
+				t.Error("Error write to udp: ", err, " count ", strconv.Itoa(n))
 				continue
 			}
 
-			readCnt += n
+			writeCnt += n
 		}
 
-		t.Log("UDP resv pass")
+		t.Log("UDP send finish")
 
 	}()
 
 	wg.Wait()
 
 	if writeCnt != readCnt {
-		t.Error("Write read bytes not match")
+		t.Errorf("Write read bytes not match write %d read %d", writeCnt, readCnt)
 	} else {
 		t.Log("Write read bytes matched")
 	}
+
+	wg.Add(2)
+
+	go func() {
+
+		defer wg.Done()
+
+		buf := make([]byte, KcpBufSize/2)
+
+		for i := 0; i < 100; i++ {
+			n, err := kSess.Write(buf)
+			if err != nil || n != KcpBufSize/2 {
+				t.Error("Error write to kcp: ", err, " count ", strconv.Itoa(n))
+				continue
+			}
+			writeCnt += n
+		}
+
+		t.Log("KCP send finish")
+
+	}()
+
+	go func() {
+
+		defer wg.Done()
+
+		buf := make([]byte, KcpBufSize)
+
+		time.Sleep(time.Millisecond * 10)
+		for i := 0; i < 100; i++ {
+			uConn.SetReadDeadline(time.Now().Add(time.Second))
+			n, err := uConn.Read(buf)
+			if n != KcpBufSize/2 || err != nil {
+				t.Error("Error read from udp: ", err, " count ", strconv.Itoa(n))
+				continue
+			}
+
+			readCnt += n
+		}
+
+		t.Log("UDP resv finish")
+
+	}()
+
+	wg.Wait()
+
+	if writeCnt != readCnt {
+		t.Errorf("Write read bytes not match write %d read %d", writeCnt, readCnt)
+	} else {
+		t.Log("Write read bytes matched")
+	}
+
 }
