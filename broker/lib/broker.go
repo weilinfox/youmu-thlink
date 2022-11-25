@@ -369,7 +369,7 @@ func handleUdpTunnel(clientPort int, hostListener net.Listener, serveConn *net.U
 			n, remoteAddr, err = serveConn.ReadFromUDP(buf)
 			// logger.Info("udp read ", n)
 			if err != nil {
-				logger.WithError(err).Error("KCP read error")
+				logger.WithError(err).Error("UDP read error")
 				break
 			}
 			if !connected {
