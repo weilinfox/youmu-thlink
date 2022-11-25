@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/xtaci/kcp-go/v5 v5.6.1
+	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
 )
 
 require (
@@ -15,7 +16,6 @@ require (
 	github.com/templexxx/cpu v0.0.7 // indirect
 	github.com/templexxx/xorsimd v0.4.1 // indirect
 	github.com/tjfoc/gmsm v1.3.2 // indirect
-	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de // indirect
 	golang.org/x/mod v0.3.0 // indirect
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
 	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect

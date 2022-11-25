@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"crypto/sha1"
 	"errors"
 	"net"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/xtaci/kcp-go/v5"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 const (
@@ -138,7 +140,9 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 	serveUdpAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
 
 	// kcp tunnel between broker and client
-	hostListener, err := kcp.Listen("0.0.0.0:0")
+	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
+	block, _ := kcp.NewAESBlockCrypt(key)
+	hostListener, err := kcp.ListenWithOptions("0.0.0.0:0", block, 10, 3)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -268,7 +272,7 @@ func handleTcpTunnel(clientPort int, hostListener net.Listener, serveListener *n
 	<-ch
 }
 
-func handleUdpTunnel(clientPort int, hostListener net.Listener, serveConn *net.UDPConn) {
+func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.UDPConn) {
 
 	defer func() {
 		delete(peers, clientPort)
@@ -288,7 +292,7 @@ func handleUdpTunnel(clientPort int, hostListener net.Listener, serveConn *net.U
 			go func() {
 				var n int
 				buf := make([]byte, KcpBufSize)
-				kConn, err = hostListener.Accept()
+				kConn, err = hostListener.AcceptKCP()
 				n, err = kConn.Read(buf)
 				if err == nil {
 					if n != 1 || buf[0] != 0x01 {

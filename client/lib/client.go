@@ -1,13 +1,16 @@
 package client
 
 import (
-	"github.com/xtaci/kcp-go/v5"
+	"crypto/sha1"
 	"net"
 	"strconv"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	broker "github.com/weilinfox/youmu-thlink/broker/lib"
+
+	"github.com/sirupsen/logrus"
+	"github.com/xtaci/kcp-go/v5"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 var logger = logrus.WithField("client", "internal")
@@ -66,22 +69,26 @@ func Main(locPort int, serverHost string, serverPort int) {
 	}
 
 	// connect to broker
-	kConn, err := kcp.Dial(serverHost + ":" + strconv.Itoa(port1))
+	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
+	block, _ := kcp.NewAESBlockCrypt(key)
+	kSess, err := kcp.DialWithOptions(serverHost+":"+strconv.Itoa(port1), block, 10, 3)
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot dial tunnel")
 	}
-	defer kConn.Close()
-	_, err = kConn.Write([]byte{0x01})
+	defer kSess.Close()
+	_, err = kSess.Write([]byte{0x01})
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot connect to tunnel")
 	}
 
+	logger.Info("KCP local address: ", kSess.LocalAddr())
+	logger.Info("KCP remote address: ", kSess.RemoteAddr())
 	logger.Infof("Tunnel established for remote "+serverAddr.IP.String()+":%d", port2)
-	handleUdp(kConn)
+	handleUdp(kSess)
 
 }
 
-func handleUdp(serverConn net.Conn) {
+func handleUdp(serverConn *kcp.UDPSession) {
 
 	localHost := "localhost:" + strconv.Itoa(localPort)
 	var udpConn *net.UDPConn
@@ -107,14 +114,6 @@ func handleUdp(serverConn net.Conn) {
 				break
 			}
 
-			if udpConn == nil {
-				logger.Info("Connect to local game")
-				udpAddr, _ := net.ResolveUDPAddr("udp4", localHost)
-				udpConn, err = net.DialUDP("udp4", nil, udpAddr)
-				if err != nil {
-					logger.WithError(err).Warn("Connect to local game error")
-				}
-			}
 			if udpConn != nil {
 				p, err := udpConn.Write(buf[:n])
 				if err != nil || p != n {
@@ -132,9 +131,19 @@ func handleUdp(serverConn net.Conn) {
 			ch <- 1
 		}()
 
+		buf := make([]byte, broker.KcpBufSize)
+
 		for {
 
-			buf := make([]byte, broker.KcpBufSize)
+			var err error
+			if udpConn == nil {
+				logger.Info("Connect to local game")
+				udpAddr, _ := net.ResolveUDPAddr("udp4", localHost)
+				udpConn, err = net.DialUDP("udp4", nil, udpAddr)
+				if err != nil {
+					logger.WithError(err).Warn("Connect to local game error")
+				}
+			}
 
 			if udpConn != nil {
 				n, err := udpConn.Read(buf)

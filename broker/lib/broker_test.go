@@ -1,12 +1,15 @@
 package broker
 
 import (
-	"github.com/xtaci/kcp-go/v5"
+	"crypto/sha1"
 	"net"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xtaci/kcp-go/v5"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 func TestRun(t *testing.T) {
@@ -109,11 +112,13 @@ func TestUDP(t *testing.T) {
 		t.Fatal("Invalid port peer", port1, port2)
 	}
 
-	kConn, err := kcp.Dial("localhost:" + strconv.Itoa(port1))
+	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
+	block, _ := kcp.NewAESBlockCrypt(key)
+	kSess, err := kcp.DialWithOptions("localhost:"+strconv.Itoa(port1), block, 10, 3)
 	if err != nil {
 		t.Fatal("KCP connection failed")
 	}
-	defer kConn.Close()
+	defer kSess.Close()
 	serveUdpAddr, _ := net.ResolveUDPAddr("udp", "localhost:"+strconv.Itoa(port2))
 	uConn, err := net.DialUDP("udp", nil, serveUdpAddr)
 	if err != nil {
@@ -122,14 +127,14 @@ func TestUDP(t *testing.T) {
 	defer uConn.Close()
 
 	// connect kcp
-	_, err = kConn.Write([]byte{0x01})
+	_, err = kSess.Write([]byte{0x01})
 
 	// connect udp
 	_, err = uConn.Write([]byte{0x01})
 	if err != nil {
 		t.Fatal("UDP write failed: ", err)
 	}
-	n, err = kConn.Read(buf)
+	n, err = kSess.Read(buf)
 	if err != nil {
 		t.Fatal("KCP read failed: ", err)
 	}
@@ -145,7 +150,7 @@ func TestUDP(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < 5; i++ {
-			n, err := kConn.Write([]byte{byte(i)})
+			n, err := kSess.Write([]byte{byte(i)})
 			if err != nil {
 				t.Error("KCP write failed: ", err)
 				continue
