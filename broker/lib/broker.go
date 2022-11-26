@@ -353,7 +353,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 			n, err := qStream.Read(buf)
 			// logger.Info("quic read ", n)
 			if err != nil {
-				logger.WithError(err).Error("QUIC read error")
+				logger.WithError(err).Warn("QUIC read error")
 				break
 			}
 
@@ -362,7 +362,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 				p, err := serveConn.WriteToUDP(buf[:n], remoteAddr)
 
 				if err != nil || p != n {
-					logger.WithError(err).Error("UDP write error or write count not match")
+					logger.WithError(err).Warn("UDP write error or write count not match")
 					break
 				}
 			}
@@ -382,7 +382,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 			n, remoteAddr, err = serveConn.ReadFromUDP(buf)
 			// logger.Info("udp read ", n)
 			if err != nil {
-				logger.WithError(err).Error("UDP read error")
+				logger.WithError(err).Warn("UDP read error")
 				break
 			}
 			if !connected {
@@ -395,7 +395,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 				p, err := qStream.Write(buf[:n])
 
 				if err != nil || p != n {
-					logger.WithError(err).Error("QUIC write error or write count not match")
+					logger.WithError(err).Warn("QUIC write error or write count not match")
 					break
 				}
 			}
