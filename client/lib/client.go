@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	broker "github.com/weilinfox/youmu-thlink/broker/lib"
@@ -126,7 +125,6 @@ func handleUdp(serverConn quic.Stream) {
 		}
 	}()
 
-	var mutex sync.Mutex
 	ch := make(chan int)
 	// PING
 	go func() {
@@ -135,9 +133,7 @@ func handleUdp(serverConn quic.Stream) {
 		}()
 
 		for {
-			mutex.Lock()
 			_, err := serverConn.Write(utils.NewDataFrame(utils.PING, nil))
-			mutex.Unlock()
 			if err != nil {
 				logger.Error("Send PING package failed")
 				break
@@ -224,9 +220,7 @@ func handleUdp(serverConn quic.Stream) {
 				}
 
 				// logger.Info("QUIC write")
-				mutex.Lock()
 				p, err := serverConn.Write(utils.NewDataFrame(utils.DATA, buf[:n]))
-				mutex.Unlock()
 				// logger.Info("QUIC write finish")
 				if err != nil || p != n+3 {
 					logger.WithError(err).WithField("count", n+3).WithField("sent", p).

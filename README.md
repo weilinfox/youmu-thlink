@@ -1,7 +1,7 @@
 # ThLink
 
 ```
-user1 --[udp/tcp]--> client --[tcp]--> broker --[udp/tcp]--> user2
+user1 --[udp/tcp]--> client --[quic]--> broker --[udp/tcp]--> user2
 
 New tunnel:
 client --[transfer type]--> broker
