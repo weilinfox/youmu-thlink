@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	broker "github.com/weilinfox/youmu-thlink/broker/lib"
 	"github.com/weilinfox/youmu-thlink/utils"
 
 	"github.com/lucas-clemente/quic-go"
@@ -32,7 +31,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 	}
 	logger.Info("Connected to broker")
 
-	buf := make([]byte, broker.CmdBufSize)
+	buf := make([]byte, utils.CmdBufSize)
 
 	// calculate delay ms
 	var delay int64 = 0
@@ -150,7 +149,7 @@ func handleUdp(serverConn quic.Stream) {
 		}()
 
 		dataStream := utils.NewDataStream()
-		buf := make([]byte, broker.TransBufSize)
+		buf := make([]byte, utils.TransBufSize)
 
 		for {
 
@@ -184,7 +183,11 @@ func handleUdp(serverConn quic.Stream) {
 					// logger.Info("Get PING")
 				}
 			}
+			
 		}
+
+		logger.Infof("Average compress rate %.3f", dataStream.CompressRateAva())
+
 	}()
 
 	// UDP -> QUIC
@@ -193,7 +196,7 @@ func handleUdp(serverConn quic.Stream) {
 			ch <- 1
 		}()
 
-		buf := make([]byte, broker.TransBufSize)
+		buf := make([]byte, utils.TransBufSize)
 
 		for {
 
@@ -220,10 +223,11 @@ func handleUdp(serverConn quic.Stream) {
 				}
 
 				// logger.Info("QUIC write")
-				p, err := serverConn.Write(utils.NewDataFrame(utils.DATA, buf[:n]))
+				gData := utils.NewDataFrame(utils.DATA, buf[:n])
+				p, err := serverConn.Write(gData)
 				// logger.Info("QUIC write finish")
-				if err != nil || p != n+3 {
-					logger.WithError(err).WithField("count", n+3).WithField("sent", p).
+				if err != nil || p != len(gData) {
+					logger.WithError(err).WithField("count", len(gData)).WithField("sent", p).
 						Warn("Send data to QUIC stream error or send count not match")
 					break
 				}

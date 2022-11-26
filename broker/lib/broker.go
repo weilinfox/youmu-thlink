@@ -12,11 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	CmdBufSize   = 64       // command frame size
-	TransBufSize = 2048 - 3 // forward frame size
-)
-
 var logger = logrus.WithField("broker", "internal")
 
 var peers = make(map[int]int)
@@ -35,7 +30,7 @@ func Main(listenAddr string) {
 
 	for {
 
-		buf := make([]byte, CmdBufSize)
+		buf := make([]byte, utils.CmdBufSize)
 		conn, err := listener.Accept()
 		if err != nil {
 			logger.WithError(err).Error("TCP listen error")
@@ -48,7 +43,7 @@ func Main(listenAddr string) {
 			continue
 		}
 
-		if n >= CmdBufSize {
+		if n >= utils.CmdBufSize {
 			logger.Warn("RawData data too long!")
 			conn.Close()
 			continue
@@ -241,7 +236,7 @@ func handleTcpTunnel(clientPort int, hostListener quic.Listener, serveListener *
 			ch <- 1
 		}()
 
-		buf := make([]byte, TransBufSize)
+		buf := make([]byte, utils.TransBufSize)
 
 		for {
 			n, err := qStream.Read(buf)
@@ -268,7 +263,7 @@ func handleTcpTunnel(clientPort int, hostListener quic.Listener, serveListener *
 			ch <- 1
 		}()
 
-		buf := make([]byte, TransBufSize)
+		buf := make([]byte, utils.TransBufSize)
 
 		for {
 			n, err := conn2.Read(buf)
@@ -355,7 +350,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 		}()
 
 		dataStream := utils.NewDataStream()
-		buf := make([]byte, TransBufSize)
+		buf := make([]byte, utils.TransBufSize)
 
 		for {
 			// read from quic
@@ -397,7 +392,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 		}()
 
 		var n int
-		buf := make([]byte, TransBufSize)
+		buf := make([]byte, utils.TransBufSize)
 
 		for {
 			n, remoteAddr, err = serveConn.ReadFromUDP(buf)
@@ -413,10 +408,12 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 
 			if n > 0 {
 				// logger.Info("quic write ", n)
-				p, err := qStream.Write(utils.NewDataFrame(utils.DATA, buf[:n]))
+				gData := utils.NewDataFrame(utils.DATA, buf[:n])
+				p, err := qStream.Write(gData)
 
-				if err != nil || p != n+3 {
-					logger.WithError(err).Warn("QUIC write error or write count not match")
+				if err != nil || p != len(gData) {
+					logger.WithError(err).WithField("count", len(gData)).WithField("sent", p).
+						Warn("QUIC write error or write count not match")
 					break
 				}
 			}

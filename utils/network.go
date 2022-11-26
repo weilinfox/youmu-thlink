@@ -1,5 +1,19 @@
 package utils
 
+import (
+	"bytes"
+	"compress/gzip"
+
+	"github.com/sirupsen/logrus"
+)
+
+const (
+	CmdBufSize   = 64       // command frame size
+	TransBufSize = 2048 - 3 // forward frame size
+)
+
+var logger = logrus.WithField("utils", "network")
+
 // NewDataFrame build data frame, b can be nil
 //
 //	+------+--------+--------------+
@@ -13,8 +27,23 @@ func NewDataFrame(t DataType, b []byte) []byte {
 		return []byte{byte(t), 0x00, 0x00}
 	}
 
-	l := len(b)
-	return append([]byte{byte(t), byte(l >> 8), byte(l)}, b...)
+	// gzip compress
+	buf := bytes.NewBuffer(nil)
+	gWriter, err := gzip.NewWriterLevel(buf, gzip.BestSpeed)
+	if err != nil {
+		logger.WithError(err).Error("New gzip compress session error")
+	}
+	l, err := gWriter.Write(b)
+	if err != nil {
+		logger.WithError(err).Error("Data compress error")
+	}
+	if l != len(b) {
+		logger.Errorf("Gzip compress data length not match: expect %d get %d", len(b), l)
+	}
+	gWriter.Close()
+	l = buf.Len()
+
+	return append([]byte{byte(t), byte(l >> 8), byte(l)}, buf.Bytes()...)
 }
 
 // DataStream parser to receive and parse data stream
@@ -25,6 +54,9 @@ type DataStream struct {
 	RawData        []byte
 	Length         int
 	Type           DataType
+
+	totalData   float64
+	totalDecode float64
 }
 
 // DataType type of data frame
@@ -62,8 +94,29 @@ func (c *DataStream) Parse() bool {
 	}
 	// get command body
 	if c.cachedDataType >= 0 && len(c.cache) >= c.cachedDataLen {
-		c.RawData = c.cache[:c.cachedDataLen]
-		c.Length, c.Type = c.cachedDataLen, DataType(c.cachedDataType)
+
+		if c.cachedDataLen == 0 {
+			c.RawData = make([]byte, 0)
+			c.Length = 0
+		} else {
+			// gzip decompress
+			result := make([]byte, TransBufSize)
+			gReader, err := gzip.NewReader(bytes.NewBuffer(c.cache[:c.cachedDataLen]))
+			if err != nil {
+				logger.WithError(err).Error("New gzip decompress session error", c.cachedDataLen, c.cachedDataType)
+			}
+			c.Length, err = gReader.Read(result)
+			if err != nil && err.Error() != "EOF" {
+				logger.WithError(err).Error("Data decompress error")
+			}
+			gReader.Close()
+
+			c.RawData = result[:c.Length]
+			c.totalData += float64(c.cachedDataLen)
+			c.totalDecode += float64(c.Length)
+		}
+
+		c.Type = DataType(c.cachedDataType)
 
 		c.cache = c.cache[c.cachedDataLen:]
 		c.cachedDataLen = -1
@@ -73,4 +126,13 @@ func (c *DataStream) Parse() bool {
 	}
 
 	return false
+}
+
+// CompressRateAva average compress rate (calculated from decompressed data)
+func (c *DataStream) CompressRateAva() float64 {
+	if c.totalData == 0 {
+		return 0
+	}
+
+	return c.totalData / c.totalDecode
 }
