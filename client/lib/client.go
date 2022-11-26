@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	broker "github.com/weilinfox/youmu-thlink/broker/lib"
@@ -125,6 +126,7 @@ func handleUdp(serverConn quic.Stream) {
 		}
 	}()
 
+	var mutex sync.Mutex
 	ch := make(chan int)
 	// PING
 	go func() {
@@ -133,7 +135,9 @@ func handleUdp(serverConn quic.Stream) {
 		}()
 
 		for {
+			mutex.Lock()
 			_, err := serverConn.Write(utils.NewDataFrame(utils.PING, nil))
+			mutex.Unlock()
 			if err != nil {
 				logger.Error("Send PING package failed")
 				break
@@ -172,7 +176,7 @@ func handleUdp(serverConn quic.Stream) {
 						p, err := udpConn.Write(dataStream.RawData)
 						// logger.Info("UDP write finish")
 						if err != nil || p != dataStream.Length {
-							logger.WithError(err).WithField("count", n).WithField("sent", p).
+							logger.WithError(err).WithField("count", dataStream.Length).WithField("sent", p).
 								Warn("Send data to game error or send count not match ")
 							udpConn.Close()
 							udpConn = nil
@@ -181,7 +185,7 @@ func handleUdp(serverConn quic.Stream) {
 					}
 
 				case utils.PING:
-					logger.Info("Get PING")
+					// logger.Info("Get PING")
 				}
 			}
 		}
@@ -199,7 +203,7 @@ func handleUdp(serverConn quic.Stream) {
 
 			var err error
 			if udpConn == nil {
-				// logger.Info("Connect to local game")
+				logger.Info("Connect to local game")
 				udpAddr, _ := net.ResolveUDPAddr("udp4", localHost)
 				udpConn, err = net.DialUDP("udp4", nil, udpAddr)
 				if err != nil {
@@ -209,21 +213,23 @@ func handleUdp(serverConn quic.Stream) {
 
 			if udpConn != nil {
 				// logger.Info("UDP read")
-				udpConn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
+				// udpConn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
 				n, err := udpConn.Read(buf)
 				// logger.Info("UDP read finish")
 				if err != nil {
-					// logger.WithError(err).Warn("Read data from local game error")
+					logger.WithError(err).Warn("Read data from local game error")
 					udpConn.Close()
 					udpConn = nil
 					continue
 				}
 
 				// logger.Info("QUIC write")
+				mutex.Lock()
 				p, err := serverConn.Write(utils.NewDataFrame(utils.DATA, buf[:n]))
+				mutex.Unlock()
 				// logger.Info("QUIC write finish")
 				if err != nil || p != n+3 {
-					logger.WithError(err).WithField("count", n).WithField("sent", p).
+					logger.WithError(err).WithField("count", n+3).WithField("sent", p).
 						Warn("Send data to QUIC stream error or send count not match")
 					break
 				}
