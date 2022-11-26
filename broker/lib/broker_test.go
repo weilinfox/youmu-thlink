@@ -95,7 +95,7 @@ func TestUDP(t *testing.T) {
 	}
 	defer conn.Close()
 
-	buf := make([]byte, KcpBufSize)
+	buf := make([]byte, TransBufSize)
 
 	// test udp
 	_, err = conn.Write([]byte{0x02, 'u'})
@@ -150,19 +150,19 @@ func TestUDP(t *testing.T) {
 
 	wg.Add(4)
 
-	writeQuicCnt = KcpBufSize / 2 * packageCnt
-	writeUdpCnt = KcpBufSize / 2 * packageCnt
+	writeQuicCnt = TransBufSize / 2 * packageCnt
+	writeUdpCnt = TransBufSize / 2 * packageCnt
 
 	// write udp
 	go func() {
 
 		defer wg.Done()
 
-		buf := make([]byte, KcpBufSize/2)
+		buf := make([]byte, TransBufSize/2)
 
 		for i := 0; i < packageCnt; i++ {
 			n, err := uConn.Write(buf)
-			if n != KcpBufSize/2 || err != nil {
+			if n != TransBufSize/2 || err != nil {
 				t.Fatal("Error write to udp: ", err, " count ", strconv.Itoa(n))
 			}
 			time.Sleep(time.Millisecond)
@@ -177,11 +177,11 @@ func TestUDP(t *testing.T) {
 
 		defer wg.Done()
 
-		buf := make([]byte, KcpBufSize/2)
+		buf := make([]byte, TransBufSize/2)
 
 		for i := 0; i < packageCnt; i++ {
 			n, err := qStream.Write(buf)
-			if n != KcpBufSize/2 || err != nil {
+			if n != TransBufSize/2 || err != nil {
 				t.Fatal("Error write to quic: ", err, " count ", strconv.Itoa(n))
 			}
 			time.Sleep(time.Millisecond)
@@ -196,7 +196,7 @@ func TestUDP(t *testing.T) {
 
 		defer wg.Done()
 
-		buf := make([]byte, KcpBufSize)
+		buf := make([]byte, TransBufSize)
 
 		for i := 0; i < packageCnt; i++ {
 			if readUdpCnt == writeUdpCnt {
@@ -223,7 +223,7 @@ func TestUDP(t *testing.T) {
 
 		defer wg.Done()
 
-		buf := make([]byte, KcpBufSize)
+		buf := make([]byte, TransBufSize)
 
 		for i := 0; i < packageCnt; i++ {
 			if readQuicCnt == writeQuicCnt {

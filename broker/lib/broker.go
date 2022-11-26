@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	CmdBufSize = 64   // command frame size
-	KcpBufSize = 2048 // kcp frame size
+	CmdBufSize   = 64   // command frame size
+	TransBufSize = 2048 // kcp frame size
 )
 
 var logger = logrus.WithField("broker", "internal")
@@ -235,7 +235,7 @@ func handleTcpTunnel(clientPort int, hostListener quic.Listener, serveListener *
 			ch <- 1
 		}()
 
-		buf := make([]byte, KcpBufSize)
+		buf := make([]byte, TransBufSize)
 
 		for {
 			n, err := qStream.Read(buf)
@@ -262,7 +262,7 @@ func handleTcpTunnel(clientPort int, hostListener quic.Listener, serveListener *
 			ch <- 1
 		}()
 
-		buf := make([]byte, KcpBufSize)
+		buf := make([]byte, TransBufSize)
 
 		for {
 			n, err := conn2.Read(buf)
@@ -346,7 +346,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 			ch <- 1
 		}()
 
-		buf := make([]byte, KcpBufSize)
+		buf := make([]byte, TransBufSize)
 
 		for {
 			// read from quic
@@ -376,7 +376,7 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 		}()
 
 		var n int
-		buf := make([]byte, KcpBufSize)
+		buf := make([]byte, TransBufSize)
 
 		for {
 			n, remoteAddr, err = serveConn.ReadFromUDP(buf)

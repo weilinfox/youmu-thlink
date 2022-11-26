@@ -1,16 +1,16 @@
 package client
 
 import (
-	"crypto/sha1"
+	"context"
+	"crypto/tls"
 	"net"
 	"strconv"
 	"time"
 
 	broker "github.com/weilinfox/youmu-thlink/broker/lib"
 
+	"github.com/lucas-clemente/quic-go"
 	"github.com/sirupsen/logrus"
-	"github.com/xtaci/kcp-go/v5"
-	"golang.org/x/crypto/pbkdf2"
 )
 
 var logger = logrus.WithField("client", "internal")
@@ -68,33 +68,33 @@ func Main(locPort int, serverHost string, serverPort int) {
 		logger.Fatal("Invalid port peer ", port1, port2)
 	}
 
-	// connect to broker
-	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
-	block, _ := kcp.NewAESBlockCrypt(key)
-	kSess, err := kcp.DialWithOptions(serverHost+":"+strconv.Itoa(port1), block, 10, 3)
-	if err != nil {
-		logger.WithError(err).Fatal("Cannot dial tunnel")
+	// connect to broker via QUIC
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		NextProtos:         []string{"myonTHlink"},
 	}
-	defer kSess.Close()
-	kSess.SetReadBuffer(16 * 1024 * 1024)
-	kSess.SetWriteBuffer(16 * 1024 * 1024)
-	kSess.SetWriteDelay(false)
-	kSess.SetStreamMode(false)
-	kSess.SetWindowSize(256, 256)
-	kSess.SetNoDelay(1, 10, 2, 1)
-	_, err = kSess.Write([]byte{0x01})
 	if err != nil {
-		logger.WithError(err).Fatal("Cannot connect to tunnel")
+		logger.WithError(err).Fatal("Generate TLS Config error ", err)
 	}
+	qConn, err := quic.DialAddr(serverHost+":"+strconv.Itoa(port1), tlsConfig, nil)
+	if err != nil {
+		logger.WithError(err).Fatal("QUIC connection failed ", err)
+	}
+	logger.Info("QUIC local address: ", qConn.LocalAddr())
+	logger.Info("QUIC remote address: ", qConn.RemoteAddr())
 
-	logger.Info("KCP local address: ", kSess.LocalAddr())
-	logger.Info("KCP remote address: ", kSess.RemoteAddr())
+	qStream, err := qConn.OpenStreamSync(context.Background())
+	if err != nil {
+		logger.WithError(err).Fatal("QUIC stream open error", err)
+	}
+	defer qStream.Close()
+
 	logger.Infof("Tunnel established for remote "+serverAddr.IP.String()+":%d", port2)
-	handleUdp(kSess)
+	handleUdp(qStream)
 
 }
 
-func handleUdp(serverConn *kcp.UDPSession) {
+func handleUdp(serverConn quic.Stream) {
 
 	localHost := "localhost:" + strconv.Itoa(localPort)
 	var udpConn *net.UDPConn
@@ -110,15 +110,15 @@ func handleUdp(serverConn *kcp.UDPSession) {
 			ch <- 1
 		}()
 
-		buf := make([]byte, broker.KcpBufSize)
+		buf := make([]byte, broker.TransBufSize)
 
 		for {
 
-			// logger.Info("KCP read")
+			// logger.Info("QUIC read")
 			n, err := serverConn.Read(buf)
-			// logger.Info("KCP read finish")
+			// logger.Info("QUIC read finish")
 			if err != nil {
-				logger.WithError(err).Warn("Read data from KCP tunnel error")
+				logger.WithError(err).Warn("Read data from QUIC stream error")
 				break
 			}
 
@@ -142,7 +142,7 @@ func handleUdp(serverConn *kcp.UDPSession) {
 			ch <- 1
 		}()
 
-		buf := make([]byte, broker.KcpBufSize)
+		buf := make([]byte, broker.TransBufSize)
 
 		for {
 
@@ -168,12 +168,12 @@ func handleUdp(serverConn *kcp.UDPSession) {
 					continue
 				}
 
-				// logger.Info("KCP write")
+				// logger.Info("QUIC write")
 				p, err := serverConn.Write(buf[:n])
-				// logger.Info("KCP write finish")
+				// logger.Info("QUIC write finish")
 				if err != nil || p != n {
 					logger.WithError(err).WithField("count", n).WithField("sent", p).
-						Warn("Send data to KCP tunnel error or send count not match")
+						Warn("Send data to QUIC stream error or send count not match")
 					break
 				}
 			}
