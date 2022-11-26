@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	CmdBufSize   = 64   // command frame size
-	TransBufSize = 2048 // forward frame size
+	CmdBufSize   = 64       // command frame size
+	TransBufSize = 2048 - 3 // forward frame size
 )
 
 var logger = logrus.WithField("broker", "internal")
@@ -347,11 +347,14 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 	connected := false
 
 	ch := make(chan int)
+
+	// QUIC -> UDP
 	go func() {
 		defer func() {
 			ch <- 1
 		}()
 
+		dataStream := utils.NewDataStream()
 		buf := make([]byte, TransBufSize)
 
 		for {
@@ -363,19 +366,31 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 				break
 			}
 
-			if connected && n > 0 {
-				// logger.Info("udp write ", n)
-				p, err := serveConn.WriteToUDP(buf[:n], remoteAddr)
+			dataStream.Append(buf[:n])
+			for dataStream.Parse() {
 
-				if err != nil || p != n {
-					logger.WithError(err).Warn("UDP write error or write count not match")
-					break
+				switch dataStream.Type {
+				case utils.DATA:
+					if connected && dataStream.Length > 0 {
+						// logger.Info("udp write ", n)
+						p, err := serveConn.WriteToUDP(dataStream.RawData, remoteAddr)
+
+						if err != nil || p != dataStream.Length {
+							logger.WithError(err).Warn("UDP write error or write count not match")
+							break
+						}
+					}
+
+				case utils.PING:
+					qStream.Write(utils.NewDataFrame(utils.PING, nil))
 				}
+
 			}
 		}
 
 	}()
 
+	// UDP -> QUIC
 	go func() {
 		defer func() {
 			ch <- 1
@@ -398,9 +413,9 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 
 			if n > 0 {
 				// logger.Info("quic write ", n)
-				p, err := qStream.Write(buf[:n])
+				p, err := qStream.Write(utils.NewDataFrame(utils.DATA, buf[:n]))
 
-				if err != nil || p != n {
+				if err != nil || p != n+3 {
 					logger.WithError(err).Warn("QUIC write error or write count not match")
 					break
 				}

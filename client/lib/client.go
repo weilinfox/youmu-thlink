@@ -126,11 +126,30 @@ func handleUdp(serverConn quic.Stream) {
 	}()
 
 	ch := make(chan int)
+	// PING
 	go func() {
 		defer func() {
 			ch <- 1
 		}()
 
+		for {
+			_, err := serverConn.Write(utils.NewDataFrame(utils.PING, nil))
+			if err != nil {
+				logger.Error("Send PING package failed")
+				break
+			}
+
+			time.Sleep(time.Second)
+		}
+	}()
+
+	// QUIC -> UDP
+	go func() {
+		defer func() {
+			ch <- 1
+		}()
+
+		dataStream := utils.NewDataStream()
 		buf := make([]byte, broker.TransBufSize)
 
 		for {
@@ -143,21 +162,32 @@ func handleUdp(serverConn quic.Stream) {
 				break
 			}
 
-			if udpConn != nil {
-				// logger.Info("UDP write")
-				p, err := udpConn.Write(buf[:n])
-				// logger.Info("UDP write finish")
-				if err != nil || p != n {
-					logger.WithError(err).WithField("count", n).WithField("sent", p).
-						Warn("Send data to game error or send count not match ")
-					udpConn.Close()
-					udpConn = nil
-					continue
+			dataStream.Append(buf[:n])
+			for dataStream.Parse() {
+				switch dataStream.Type {
+
+				case utils.DATA:
+					if udpConn != nil {
+						// logger.Info("UDP write")
+						p, err := udpConn.Write(dataStream.RawData)
+						// logger.Info("UDP write finish")
+						if err != nil || p != dataStream.Length {
+							logger.WithError(err).WithField("count", n).WithField("sent", p).
+								Warn("Send data to game error or send count not match ")
+							udpConn.Close()
+							udpConn = nil
+							continue
+						}
+					}
+
+				case utils.PING:
+					logger.Info("Get PING")
 				}
 			}
 		}
 	}()
 
+	// UDP -> QUIC
 	go func() {
 		defer func() {
 			ch <- 1
@@ -190,9 +220,9 @@ func handleUdp(serverConn quic.Stream) {
 				}
 
 				// logger.Info("QUIC write")
-				p, err := serverConn.Write(buf[:n])
+				p, err := serverConn.Write(utils.NewDataFrame(utils.DATA, buf[:n]))
 				// logger.Info("QUIC write finish")
-				if err != nil || p != n {
+				if err != nil || p != n+3 {
 					logger.WithError(err).WithField("count", n).WithField("sent", p).
 						Warn("Send data to QUIC stream error or send count not match")
 					break
