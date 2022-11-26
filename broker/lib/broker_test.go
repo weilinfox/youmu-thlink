@@ -85,6 +85,8 @@ func TestPing(t *testing.T) {
 	}
 }
 
+const packageCnt = 150
+
 func TestUDP(t *testing.T) {
 	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", serverAddress)
 	conn, err := net.DialTCP("tcp4", nil, brokerTcpAddr)
@@ -95,7 +97,7 @@ func TestUDP(t *testing.T) {
 
 	buf := make([]byte, KcpBufSize)
 
-	// test ping
+	// test udp
 	_, err = conn.Write([]byte{0x02, 'u'})
 	if err != nil {
 		t.Fatal("Fail to send new udp tunnel command: ", err.Error())
@@ -123,6 +125,8 @@ func TestUDP(t *testing.T) {
 	if err != nil {
 		t.Fatal("KCP connection failed")
 	}
+	// kSess.SetReadBuffer(16 * 1024 * 1024)
+	// kSess.SetWriteBuffer(16 * 1024 * 1024)
 	defer kSess.Close()
 	serveUdpAddr, _ := net.ResolveUDPAddr("udp", serverHost+":"+strconv.Itoa(port2))
 	uConn, err := net.DialUDP("udp", nil, serveUdpAddr)
@@ -130,6 +134,10 @@ func TestUDP(t *testing.T) {
 		t.Fatal("UDP connection failed")
 	}
 	defer uConn.Close()
+	kSess.SetWriteDelay(false)
+	kSess.SetStreamMode(false)
+	kSess.SetNoDelay(1, 10, 2, 1)
+	//kSess.SetACKNoDelay(true)
 
 	// connect kcp
 	_, err = kSess.Write([]byte{0x01})
@@ -150,15 +158,14 @@ func TestUDP(t *testing.T) {
 	var writeCnt, readCnt int
 	var wg sync.WaitGroup
 
-	wg.Add(2)
+	wg.Add(4)
 	go func() {
 
 		defer wg.Done()
 
 		buf := make([]byte, KcpBufSize)
 
-		time.Sleep(time.Millisecond * 10)
-		for i := 0; i < 100; i++ {
+		for i := 0; i < packageCnt; i++ {
 			kSess.SetReadDeadline(time.Now().Add(time.Second))
 			n, err := kSess.Read(buf)
 			if err != nil || n != KcpBufSize/2 {
@@ -178,12 +185,13 @@ func TestUDP(t *testing.T) {
 
 		buf := make([]byte, KcpBufSize/2)
 
-		for i := 0; i < 100; i++ {
+		for i := 0; i < packageCnt; i++ {
 			n, err := uConn.Write(buf)
 			if n != KcpBufSize/2 || err != nil {
 				t.Error("Error write to udp: ", err, " count ", strconv.Itoa(n))
 				continue
 			}
+			time.Sleep(time.Millisecond)
 
 			writeCnt += n
 		}
@@ -192,15 +200,18 @@ func TestUDP(t *testing.T) {
 
 	}()
 
-	wg.Wait()
+	/*
+		wg.Wait()
 
-	if writeCnt != readCnt {
-		t.Errorf("Write read bytes not match write %d read %d", writeCnt, readCnt)
-	} else {
-		t.Log("Write read bytes matched")
-	}
+		if writeCnt != readCnt {
+			t.Errorf("Write read bytes not match write %d read %d", writeCnt, readCnt)
+		} else {
+			t.Log("Write read bytes matched")
+		}
 
-	wg.Add(2)
+		wg.Add(2)
+
+	*/
 
 	go func() {
 
@@ -208,12 +219,14 @@ func TestUDP(t *testing.T) {
 
 		buf := make([]byte, KcpBufSize/2)
 
-		for i := 0; i < 100; i++ {
+		for i := 0; i < packageCnt; i++ {
 			n, err := kSess.Write(buf)
 			if err != nil || n != KcpBufSize/2 {
 				t.Error("Error write to kcp: ", err, " count ", strconv.Itoa(n))
 				continue
 			}
+			time.Sleep(time.Millisecond)
+
 			writeCnt += n
 		}
 
@@ -227,8 +240,7 @@ func TestUDP(t *testing.T) {
 
 		buf := make([]byte, KcpBufSize)
 
-		time.Sleep(time.Millisecond * 10)
-		for i := 0; i < 100; i++ {
+		for i := 0; i < packageCnt; i++ {
 			uConn.SetReadDeadline(time.Now().Add(time.Second))
 			n, err := uConn.Read(buf)
 			if n != KcpBufSize/2 || err != nil {

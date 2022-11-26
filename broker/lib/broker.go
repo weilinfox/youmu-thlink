@@ -146,6 +146,8 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 	if err != nil {
 		return 0, 0, err
 	}
+	// hostListener.SetReadBuffer(16 * 1024 * 1024)
+	// hostListener.SetWriteBuffer(16 * 1024 * 1024)
 	logger.Info("KCP listen at ", hostListener.Addr().String())
 	serveConn, err := net.ListenUDP("udp4", serveUdpAddr)
 	if err != nil {
@@ -286,7 +288,7 @@ func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.
 
 	// client connect tunnel in 10s
 	var waitMs int64 = 0
-	var kConn net.Conn
+	var kConn *kcp.UDPSession
 	var err error
 	for {
 		switch waitMs {
@@ -295,6 +297,11 @@ func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.
 				var n int
 				buf := make([]byte, KcpBufSize)
 				kConn, err = hostListener.AcceptKCP()
+				kConn.SetWriteDelay(false)
+				kConn.SetStreamMode(false)
+				// kConn.SetWindowSize(48, 48)
+				kConn.SetNoDelay(1, 10, 2, 1)
+				// kConn.SetACKNoDelay(true)
 				if err == nil {
 					n, err = kConn.Read(buf)
 					if err == nil {

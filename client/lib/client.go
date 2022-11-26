@@ -76,6 +76,12 @@ func Main(locPort int, serverHost string, serverPort int) {
 		logger.WithError(err).Fatal("Cannot dial tunnel")
 	}
 	defer kSess.Close()
+	kSess.SetReadBuffer(16 * 1024 * 1024)
+	kSess.SetWriteBuffer(16 * 1024 * 1024)
+	kSess.SetWriteDelay(false)
+	kSess.SetStreamMode(false)
+	kSess.SetWindowSize(256, 256)
+	kSess.SetNoDelay(1, 10, 2, 1)
 	_, err = kSess.Write([]byte{0x01})
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot connect to tunnel")
@@ -108,16 +114,21 @@ func handleUdp(serverConn *kcp.UDPSession) {
 
 		for {
 
+			// logger.Info("KCP read")
 			n, err := serverConn.Read(buf)
+			// logger.Info("KCP read finish")
 			if err != nil {
 				logger.WithError(err).Warn("Read data from KCP tunnel error")
 				break
 			}
 
 			if udpConn != nil {
+				// logger.Info("UDP write")
 				p, err := udpConn.Write(buf[:n])
+				// logger.Info("UDP write finish")
 				if err != nil || p != n {
-					logger.WithError(err).Warn("Send data to game error or send count not match")
+					logger.WithError(err).WithField("count", n).WithField("sent", p).
+						Warn("Send data to game error or send count not match ")
 					udpConn.Close()
 					udpConn = nil
 					continue
@@ -137,7 +148,7 @@ func handleUdp(serverConn *kcp.UDPSession) {
 
 			var err error
 			if udpConn == nil {
-				logger.Info("Connect to local game")
+				// logger.Info("Connect to local game")
 				udpAddr, _ := net.ResolveUDPAddr("udp4", localHost)
 				udpConn, err = net.DialUDP("udp4", nil, udpAddr)
 				if err != nil {
@@ -146,17 +157,23 @@ func handleUdp(serverConn *kcp.UDPSession) {
 			}
 
 			if udpConn != nil {
+				// logger.Info("UDP read")
+				udpConn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
 				n, err := udpConn.Read(buf)
+				// logger.Info("UDP read finish")
 				if err != nil {
-					logger.WithError(err).Warn("Read data from local game error")
+					// logger.WithError(err).Warn("Read data from local game error")
 					udpConn.Close()
 					udpConn = nil
 					continue
 				}
 
+				// logger.Info("KCP write")
 				p, err := serverConn.Write(buf[:n])
+				// logger.Info("KCP write finish")
 				if err != nil || p != n {
-					logger.WithError(err).Warn("Send data to KCP tunnel error or send count not match")
+					logger.WithError(err).WithField("count", n).WithField("sent", p).
+						Warn("Send data to KCP tunnel error or send count not match")
 					break
 				}
 			}
