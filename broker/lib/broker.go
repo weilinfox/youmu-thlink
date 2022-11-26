@@ -145,7 +145,7 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	hostListener, err := quic.ListenAddr(hostIP+":0", tlsConfig, nil)
+	hostListener, err := quic.ListenAddr("0.0.0.0:0", tlsConfig, nil)
 	if err != nil {
 		return 0, 0, err
 	}

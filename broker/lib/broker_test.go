@@ -85,7 +85,7 @@ func TestPing(t *testing.T) {
 	}
 }
 
-const packageCnt = 100
+const packageCnt = 64
 
 func TestUDP(t *testing.T) {
 	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", serverAddress)
@@ -206,6 +206,9 @@ func TestUDP(t *testing.T) {
 			n, err := uConn.Read(buf)
 			if err != nil {
 				t.Log("Error read from udp: ", err, " count ", strconv.Itoa(n))
+				if n == 0 {
+					break
+				}
 			}
 
 			readUdpCnt += n
@@ -229,7 +232,11 @@ func TestUDP(t *testing.T) {
 			n, err := qStream.Read(buf)
 			if err != nil {
 				t.Log("Error read from quic: ", err, " count ", strconv.Itoa(n))
+				if n == 0 {
+					break
+				}
 			}
+
 			readQuicCnt += n
 		}
 
