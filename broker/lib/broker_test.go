@@ -1,15 +1,15 @@
 package broker
 
 import (
-	"crypto/sha1"
+	"context"
+	"crypto/tls"
 	"net"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/xtaci/kcp-go/v5"
-	"golang.org/x/crypto/pbkdf2"
+	"github.com/lucas-clemente/quic-go"
 )
 
 const (
@@ -85,7 +85,7 @@ func TestPing(t *testing.T) {
 	}
 }
 
-const packageCnt = 150
+const packageCnt = 100
 
 func TestUDP(t *testing.T) {
 	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", serverAddress)
@@ -119,66 +119,41 @@ func TestUDP(t *testing.T) {
 		t.Fatal("Invalid port peer", port1, port2)
 	}
 
-	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
-	block, _ := kcp.NewAESBlockCrypt(key)
-	kSess, err := kcp.DialWithOptions(serverHost+":"+strconv.Itoa(port1), block, 10, 3)
-	if err != nil {
-		t.Fatal("KCP connection failed")
+	// QUIC
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		NextProtos:         []string{"myonTHlink"},
 	}
-	// kSess.SetReadBuffer(16 * 1024 * 1024)
-	// kSess.SetWriteBuffer(16 * 1024 * 1024)
-	defer kSess.Close()
+	if err != nil {
+		t.Fatal("Generate TLS Config error ", err)
+	}
+	qConn, err := quic.DialAddr(serverHost+":"+strconv.Itoa(port1), tlsConfig, nil)
+	if err != nil {
+		t.Fatal("QUIC connection failed ", err)
+	}
+	qStream, err := qConn.OpenStreamSync(context.Background())
+	if err != nil {
+		t.Fatal("QUIC stream open error", err)
+	}
+	defer qStream.Close()
+
+	// UDP
 	serveUdpAddr, _ := net.ResolveUDPAddr("udp", serverHost+":"+strconv.Itoa(port2))
 	uConn, err := net.DialUDP("udp", nil, serveUdpAddr)
 	if err != nil {
 		t.Fatal("UDP connection failed")
 	}
 	defer uConn.Close()
-	kSess.SetWriteDelay(false)
-	kSess.SetStreamMode(false)
-	kSess.SetNoDelay(1, 10, 2, 1)
-	//kSess.SetACKNoDelay(true)
 
-	// connect kcp
-	_, err = kSess.Write([]byte{0x01})
-
-	// connect udp
-	_, err = uConn.Write([]byte{0x01})
-	if err != nil {
-		t.Fatal("UDP write failed: ", err)
-	}
-	n, err = kSess.Read(buf)
-	if err != nil {
-		t.Fatal("KCP read failed: ", err)
-	}
-	if n != 1 || buf[0] != 0x01 {
-		t.Fatal("KCP read wrong UDP ping data")
-	}
-
-	var writeCnt, readCnt int
+	var writeQuicCnt, readQuicCnt, writeUdpCnt, readUdpCnt int
 	var wg sync.WaitGroup
 
 	wg.Add(4)
-	go func() {
 
-		defer wg.Done()
+	writeQuicCnt = KcpBufSize / 2 * packageCnt
+	writeUdpCnt = KcpBufSize / 2 * packageCnt
 
-		buf := make([]byte, KcpBufSize)
-
-		for i := 0; i < packageCnt; i++ {
-			kSess.SetReadDeadline(time.Now().Add(time.Second))
-			n, err := kSess.Read(buf)
-			if err != nil || n != KcpBufSize/2 {
-				t.Error("Error read from kcp: ", err, " count ", strconv.Itoa(n))
-				continue
-			}
-			readCnt += n
-		}
-
-		t.Log("KCP resv finish")
-
-	}()
-
+	// write udp
 	go func() {
 
 		defer wg.Done()
@@ -188,31 +163,16 @@ func TestUDP(t *testing.T) {
 		for i := 0; i < packageCnt; i++ {
 			n, err := uConn.Write(buf)
 			if n != KcpBufSize/2 || err != nil {
-				t.Error("Error write to udp: ", err, " count ", strconv.Itoa(n))
-				continue
+				t.Fatal("Error write to udp: ", err, " count ", strconv.Itoa(n))
 			}
 			time.Sleep(time.Millisecond)
-
-			writeCnt += n
 		}
 
 		t.Log("UDP send finish")
 
 	}()
 
-	/*
-		wg.Wait()
-
-		if writeCnt != readCnt {
-			t.Errorf("Write read bytes not match write %d read %d", writeCnt, readCnt)
-		} else {
-			t.Log("Write read bytes matched")
-		}
-
-		wg.Add(2)
-
-	*/
-
+	// write quic
 	go func() {
 
 		defer wg.Done()
@@ -220,20 +180,18 @@ func TestUDP(t *testing.T) {
 		buf := make([]byte, KcpBufSize/2)
 
 		for i := 0; i < packageCnt; i++ {
-			n, err := kSess.Write(buf)
-			if err != nil || n != KcpBufSize/2 {
-				t.Error("Error write to kcp: ", err, " count ", strconv.Itoa(n))
-				continue
+			n, err := qStream.Write(buf)
+			if n != KcpBufSize/2 || err != nil {
+				t.Fatal("Error write to quic: ", err, " count ", strconv.Itoa(n))
 			}
 			time.Sleep(time.Millisecond)
-
-			writeCnt += n
 		}
 
-		t.Log("KCP send finish")
+		t.Log("QUIC send finish")
 
 	}()
 
+	// read udp
 	go func() {
 
 		defer wg.Done()
@@ -241,26 +199,55 @@ func TestUDP(t *testing.T) {
 		buf := make([]byte, KcpBufSize)
 
 		for i := 0; i < packageCnt; i++ {
+			if readUdpCnt == writeUdpCnt {
+				break
+			}
 			uConn.SetReadDeadline(time.Now().Add(time.Second))
 			n, err := uConn.Read(buf)
-			if n != KcpBufSize/2 || err != nil {
-				t.Error("Error read from udp: ", err, " count ", strconv.Itoa(n))
-				continue
+			if err != nil {
+				t.Log("Error read from udp: ", err, " count ", strconv.Itoa(n))
 			}
 
-			readCnt += n
+			readUdpCnt += n
 		}
 
 		t.Log("UDP resv finish")
 
 	}()
 
+	// read quic
+	go func() {
+
+		defer wg.Done()
+
+		buf := make([]byte, KcpBufSize)
+
+		for i := 0; i < packageCnt; i++ {
+			if readQuicCnt == writeQuicCnt {
+				break
+			}
+			n, err := qStream.Read(buf)
+			if err != nil {
+				t.Log("Error read from quic: ", err, " count ", strconv.Itoa(n))
+			}
+			readQuicCnt += n
+		}
+
+		t.Log("QUIC resv finish")
+
+	}()
+
 	wg.Wait()
 
-	if writeCnt != readCnt {
-		t.Errorf("Write read bytes not match write %d read %d", writeCnt, readCnt)
+	if writeQuicCnt != readQuicCnt {
+		t.Errorf("QUIC write read bytes not match write %d read %d", writeQuicCnt, readQuicCnt)
 	} else {
-		t.Log("Write read bytes matched")
+		t.Log("QUIC write read bytes matched", writeQuicCnt)
+	}
+	if writeUdpCnt != readUdpCnt {
+		t.Errorf("UDP write read bytes not match write %d read %d", writeUdpCnt, readUdpCnt)
+	} else {
+		t.Log("UDP write read bytes matched ", writeUdpCnt)
 	}
 
 }

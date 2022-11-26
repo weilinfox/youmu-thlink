@@ -1,15 +1,15 @@
 package broker
 
 import (
-	"crypto/sha1"
-	"errors"
+	"context"
 	"net"
 	"strconv"
 	"time"
 
+	"github.com/weilinfox/youmu-thlink/utils"
+
+	"github.com/lucas-clemente/quic-go"
 	"github.com/sirupsen/logrus"
-	"github.com/xtaci/kcp-go/v5"
-	"golang.org/x/crypto/pbkdf2"
 )
 
 const (
@@ -110,8 +110,9 @@ func newTcpTunnel(hostIP string) (int, int, error) {
 
 	serveTcpAddr, err := net.ResolveTCPAddr("tcp", "0.0.0.0:0")
 
-	// kcp tunnel between broker and client
-	hostListener, err := kcp.Listen(hostIP + ":0")
+	// quic tunnel between broker and client
+	tlsConfig, err := utils.GenerateTLSConfig()
+	hostListener, err := quic.ListenAddr(hostIP+":0", tlsConfig, nil)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -139,16 +140,16 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 
 	serveUdpAddr, err := net.ResolveUDPAddr("udp4", "0.0.0.0:0")
 
-	// kcp tunnel between broker and client
-	key := pbkdf2.Key([]byte("myon-0406"), []byte("myon-salt"), 1024, 32, sha1.New)
-	block, _ := kcp.NewAESBlockCrypt(key)
-	hostListener, err := kcp.ListenWithOptions("0.0.0.0:0", block, 10, 3)
+	// quic tunnel between broker and client
+	tlsConfig, err := utils.GenerateTLSConfig()
 	if err != nil {
 		return 0, 0, err
 	}
-	// hostListener.SetReadBuffer(16 * 1024 * 1024)
-	// hostListener.SetWriteBuffer(16 * 1024 * 1024)
-	logger.Info("KCP listen at ", hostListener.Addr().String())
+	hostListener, err := quic.ListenAddr(hostIP+":0", tlsConfig, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	logger.Info("QUIC listen at ", hostListener.Addr().String())
 	serveConn, err := net.ListenUDP("udp4", serveUdpAddr)
 	if err != nil {
 		_ = hostListener.Close()
@@ -169,7 +170,7 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 
 }
 
-func handleTcpTunnel(clientPort int, hostListener net.Listener, serveListener *net.TCPListener) {
+func handleTcpTunnel(clientPort int, hostListener quic.Listener, serveListener *net.TCPListener) {
 
 	defer func() {
 		delete(peers, clientPort)
@@ -181,33 +182,43 @@ func handleTcpTunnel(clientPort int, hostListener net.Listener, serveListener *n
 
 	// client connect tunnel in 10s
 	var waitMs int64 = 0
-	var conn net.Conn
+	var qConn quic.Connection
 	var err error
 	for {
 		switch waitMs {
 		case 0:
 			go func() {
-				conn, err = hostListener.Accept()
+				qConn, err = hostListener.Accept(context.Background())
 			}()
+
 		default:
-			if conn == nil && err == nil {
+			if qConn == nil && err == nil {
 				time.Sleep(time.Millisecond)
 			}
 		}
 
-		if conn != nil || err != nil {
+		if qConn != nil || err != nil {
 			break
 		}
 
 		waitMs++
 		if waitMs > 1000*10 {
-			logger.WithError(err).Error("Get client connection failed")
+			logger.WithError(err).Error("Get client connection timeout")
 
 			return
 		}
 	}
+	if err != nil {
+		logger.WithError(err).Error("Get client connection failed")
+		return
+	}
 
-	defer conn.Close()
+	qStream, err := qConn.AcceptStream(context.Background())
+	if err != nil {
+		logger.WithError(err).Error("Get client stream failed")
+		return
+	}
+	defer qStream.Close()
 
 	conn2, err := serveListener.AcceptTCP()
 	if err != nil {
@@ -227,7 +238,7 @@ func handleTcpTunnel(clientPort int, hostListener net.Listener, serveListener *n
 		buf := make([]byte, KcpBufSize)
 
 		for {
-			n, err := conn.Read(buf)
+			n, err := qStream.Read(buf)
 
 			if n > 0 {
 				p := 0
@@ -259,7 +270,7 @@ func handleTcpTunnel(clientPort int, hostListener net.Listener, serveListener *n
 			if n > 0 {
 				p := 0
 				for {
-					p, err = conn.Write(buf[p:n])
+					p, err = qStream.Write(buf[p:n])
 
 					if err != nil || p == n {
 						break
@@ -276,7 +287,7 @@ func handleTcpTunnel(clientPort int, hostListener net.Listener, serveListener *n
 	<-ch
 }
 
-func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.UDPConn) {
+func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.UDPConn) {
 
 	defer func() {
 		delete(peers, clientPort)
@@ -288,41 +299,22 @@ func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.
 
 	// client connect tunnel in 10s
 	var waitMs int64 = 0
-	var kConn *kcp.UDPSession
+	var qConn quic.Connection
 	var err error
 	for {
 		switch waitMs {
 		case 0:
 			go func() {
-				var n int
-				buf := make([]byte, KcpBufSize)
-				kConn, err = hostListener.AcceptKCP()
-				kConn.SetWriteDelay(false)
-				kConn.SetStreamMode(false)
-				// kConn.SetWindowSize(48, 48)
-				kConn.SetNoDelay(1, 10, 2, 1)
-				// kConn.SetACKNoDelay(true)
-				if err == nil {
-					n, err = kConn.Read(buf)
-					if err == nil {
-						if n != 1 || buf[0] != 0x01 {
-							err = errors.New("invalid kcp connection, close it")
-							kConn.Close()
-							kConn = nil
-						} else {
-							logger.WithField("host", kConn.RemoteAddr()).Info("Client KCP tunnel connected")
-						}
-					}
-				}
+				qConn, err = hostListener.Accept(context.Background())
 			}()
 
 		default:
-			if kConn == nil && err == nil {
+			if qConn == nil && err == nil {
 				time.Sleep(time.Millisecond)
 			}
 		}
 
-		if kConn != nil || err != nil {
+		if qConn != nil || err != nil {
 			break
 		}
 
@@ -338,7 +330,12 @@ func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.
 		return
 	}
 
-	defer kConn.Close()
+	qStream, err := qConn.AcceptStream(context.Background())
+	if err != nil {
+		logger.WithError(err).Error("Get client stream failed")
+		return
+	}
+	defer qStream.Close()
 
 	var remoteAddr *net.UDPAddr
 	connected := false
@@ -352,11 +349,11 @@ func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.
 		buf := make([]byte, KcpBufSize)
 
 		for {
-			// read from kcp
-			n, err := kConn.Read(buf)
-			// logger.Info("kcp read ", n)
+			// read from quic
+			n, err := qStream.Read(buf)
+			// logger.Info("quic read ", n)
 			if err != nil {
-				logger.WithError(err).Error("KCP read error")
+				logger.WithError(err).Error("QUIC read error")
 				break
 			}
 
@@ -394,11 +391,11 @@ func handleUdpTunnel(clientPort int, hostListener *kcp.Listener, serveConn *net.
 			}
 
 			if n > 0 {
-				// logger.Info("kcp write ", n)
-				p, err := kConn.Write(buf[:n])
+				// logger.Info("quic write ", n)
+				p, err := qStream.Write(buf[:n])
 
 				if err != nil || p != n {
-					logger.WithError(err).Error("KCP write error or write count not match")
+					logger.WithError(err).Error("QUIC write error or write count not match")
 					break
 				}
 			}
