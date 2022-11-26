@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/weilinfox/youmu-thlink/utils"
+
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -63,7 +65,7 @@ func TestPing(t *testing.T) {
 	buf := make([]byte, CmdBufSize)
 
 	// test ping
-	_, err = conn.Write([]byte{0x01})
+	_, err = conn.Write(utils.NewDataFrame(utils.PING, nil))
 	if err != nil {
 		t.Fatal("Fail to send ping: ", err.Error())
 	}
@@ -74,11 +76,10 @@ func TestPing(t *testing.T) {
 	if err != nil {
 		t.Fatal("Cannot read from server: ", err.Error())
 	}
-	if n != 1 {
-		t.Fatal("Ping response length not 1")
-	}
 
-	if buf[0] != 0x01 || n != 1 {
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() || dataStream.Type != utils.PING {
 		t.Error("Not a ping response: ", buf[:n])
 	} else {
 		t.Log("Ping test passed")
@@ -98,7 +99,7 @@ func TestUDP(t *testing.T) {
 	buf := make([]byte, TransBufSize)
 
 	// test udp
-	_, err = conn.Write([]byte{0x02, 'u'})
+	_, err = conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{'u'}))
 	if err != nil {
 		t.Fatal("Fail to send new udp tunnel command: ", err.Error())
 	}
@@ -109,12 +110,14 @@ func TestUDP(t *testing.T) {
 		t.Fatal("Cannot read from server: ", err.Error())
 	}
 
-	if buf[0] != 0x02 || n != 5 {
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() || dataStream.Type != utils.TUNNEL {
 		t.Fatal("Not a new udp tunnel response: ", buf[:n])
 	}
 
-	port1 := int(buf[1])<<8 + int(buf[2])
-	port2 := int(buf[3])<<8 + int(buf[4])
+	port1 := int(dataStream.RawData[0])<<8 + int(dataStream.RawData[1])
+	port2 := int(dataStream.RawData[2])<<8 + int(dataStream.RawData[3])
 	if port1 <= 0 || port1 > 65535 || port2 <= 0 || port2 > 65535 {
 		t.Fatal("Invalid port peer", port1, port2)
 	}

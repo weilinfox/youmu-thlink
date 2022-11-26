@@ -8,6 +8,7 @@ import (
 	"time"
 
 	broker "github.com/weilinfox/youmu-thlink/broker/lib"
+	"github.com/weilinfox/youmu-thlink/utils"
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/sirupsen/logrus"
@@ -25,11 +26,9 @@ func Main(locPort int, serverHost string, serverPort int) {
 	logger.Info("Will connect to local port ", localPort)
 	logger.Info("Will connect to broker address ", dileHost)
 
-	serverAddr, _ := net.ResolveTCPAddr("tcp4", dileHost)
-	conn, err := net.DialTCP("tcp4", nil, serverAddr)
-
+	serverAddr, err := net.ResolveTCPAddr("tcp4", dileHost)
 	if err != nil {
-		logger.WithError(err).Fatal("Cannot connect to broker")
+		logger.WithError(err).Fatal("Cannot resolve broker address")
 	}
 	logger.Info("Connected to broker")
 
@@ -39,31 +38,53 @@ func Main(locPort int, serverHost string, serverPort int) {
 	var delay int64 = 0
 	for i := 5; i >= 0; i-- {
 		timeSend := time.Now()
-		conn.Write([]byte{0x01})
-		_, _ = conn.Read(buf)
+
+		// send ping
+		conn, err := net.DialTCP("tcp4", nil, serverAddr)
+		if err != nil {
+			logger.WithError(err).Fatal("Cannot connect to broker")
+		}
+		_, err = conn.Write(utils.NewDataFrame(utils.PING, nil))
+		if err != nil {
+			conn.Close()
+			logger.Fatal("Send ping failed")
+		}
+		n, err := conn.Read(buf)
+		if err != nil {
+			conn.Close()
+			logger.Fatal("Get ping response failed")
+		}
 		conn.Close()
 		timeResp := time.Now()
-		if buf[0] != 0x01 {
-			logger.Fatal("Invalid ping response from server")
+
+		// parse response
+		dataStream := utils.NewDataStream()
+		dataStream.Append(buf[:n])
+		if !dataStream.Parse() || dataStream.Type != utils.PING {
+			logger.Fatal("Invalid PING response from server")
 		}
+
 		delay += timeResp.Sub(timeSend).Milliseconds()
 	}
 	logger.Infof("Delay %.3fms", float64(delay)/5.0)
 
 	// new udp tunnel
 	logger.Info("Ask for new udp tunnel")
-	conn, err = net.DialTCP("tcp4", nil, serverAddr)
-	conn.Write([]byte{0x02, 'u'})
-	n, _ := conn.Read(buf)
+	conn, err := net.DialTCP("tcp4", nil, serverAddr)
 
-	if buf[0] != 0x02 || n != 5 {
-		logger.Fatal("Invalid response from server")
-	}
+	conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{'u'}))
+	n, _ := conn.Read(buf)
 	conn.Close()
 
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() || dataStream.Type != utils.TUNNEL {
+		logger.Fatal("Invalid TUNNEL response from server")
+	}
+
 	var port1, port2 int
-	port1 = int(buf[1])<<8 + int(buf[2])
-	port2 = int(buf[3])<<8 + int(buf[4])
+	port1 = int(dataStream.RawData[0])<<8 + int(dataStream.RawData[1])
+	port2 = int(dataStream.RawData[2])<<8 + int(dataStream.RawData[3])
 	if port1 <= 0 || port1 > 65535 || port2 <= 0 || port2 > 65535 {
 		logger.Fatal("Invalid port peer ", port1, port2)
 	}

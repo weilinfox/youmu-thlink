@@ -14,7 +14,7 @@ import (
 
 const (
 	CmdBufSize   = 64   // command frame size
-	TransBufSize = 2048 // kcp frame size
+	TransBufSize = 2048 // forward frame size
 )
 
 var logger = logrus.WithField("broker", "internal")
@@ -49,29 +49,35 @@ func Main(listenAddr string) {
 		}
 
 		if n >= CmdBufSize {
-			logger.Warn("Command data too long!")
+			logger.Warn("RawData data too long!")
 			conn.Close()
 			continue
 		}
 
 		// handle commands
+		dataStream := utils.NewDataStream()
+		dataStream.Append(buf[:n])
+		if !dataStream.Parse() {
+			logger.Warn("Invalid command")
+			continue
+		}
 		go func() {
-			switch buf[0] {
-			case 0x01:
+			switch dataStream.Type {
+			case utils.PING:
 				// ping
-				_, err := conn.Write([]byte{0x01})
+				_, err := conn.Write(utils.NewDataFrame(utils.PING, nil))
 
 				if err != nil {
 					logger.WithError(err).Error("Send response failed")
 				}
 
-			case 0x02:
+			case utils.TUNNEL:
 				// new tcp/udp tunnel
-				// 0x02 t/u
+				// <type> t/u
 				var port1, port2 int
 				var err error
 
-				switch buf[1] {
+				switch dataStream.RawData[0] {
 				case 't':
 					logger.WithField("host", conn.RemoteAddr().String()).Info("New tcp tunnel")
 					host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
@@ -88,14 +94,14 @@ func Main(listenAddr string) {
 					logger.WithError(err).Error("Failed to build new tunnel")
 				}
 
-				_, err = conn.Write([]byte{0x02, byte(port1 >> 8), byte(port1), byte(port2 >> 8), byte(port2)})
+				_, err = conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{byte(port1 >> 8), byte(port1), byte(port2 >> 8), byte(port2)}))
 
 				if err != nil {
 					logger.WithError(err).Error("Send response failed")
 				}
 
 			default:
-				logger.Warn("Command data invalid")
+				logger.Warn("RawData data invalid")
 			}
 
 			_ = conn.Close()
