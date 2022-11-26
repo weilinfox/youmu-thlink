@@ -183,8 +183,8 @@ func TestUDP(t *testing.T) {
 		buf := make([]byte, TransBufSize/2)
 
 		for i := 0; i < packageCnt; i++ {
-			n, err := qStream.Write(buf)
-			if n != TransBufSize/2 || err != nil {
+			n, err := qStream.Write(utils.NewDataFrame(utils.DATA, buf))
+			if n-3 != TransBufSize/2 || err != nil {
 				t.Fatal("Error write to quic: ", err, " count ", strconv.Itoa(n))
 			}
 			time.Sleep(time.Millisecond)
@@ -226,6 +226,7 @@ func TestUDP(t *testing.T) {
 
 		defer wg.Done()
 
+		dataStream := utils.NewDataStream()
 		buf := make([]byte, TransBufSize)
 
 		for i := 0; i < packageCnt; i++ {
@@ -240,7 +241,14 @@ func TestUDP(t *testing.T) {
 				}
 			}
 
-			readQuicCnt += n
+			dataStream.Append(buf)
+			for dataStream.Parse() {
+				if dataStream.Type != utils.DATA {
+					t.Error("Not a DATA frame")
+				}
+				readQuicCnt += dataStream.Length
+			}
+
 		}
 
 		t.Log("QUIC resv finish")
