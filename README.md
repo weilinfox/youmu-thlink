@@ -21,9 +21,9 @@
 
 ## 使用方法
 
-与 [shitama](https://github.com/u-u-z/shitama) 和 shitama 的[原作者](https://github.com/evshiron)新作 [swarm](https://github.com/evshiron/swarm-ng-build) 一样。
+按 client 界面提示操作即可。
 
-## TH09
+### TH09
 
 花映塚使用 DirectPlay 实现联机，故需要 adonis2 配合才能使用 thlink 联机。
 
@@ -39,13 +39,57 @@
 
 联机成功后 adomis2 会自动启动花映塚。
 
-## TH10.5
+### TH10.5
 
 绯想天直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
 
-## TH12.3
+### TH12.3
 
 非想天则同样直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
+
+## 构建和部署
+
+Go >= 1.18
+
+注意 loong64 架构从 Go 1.19 开始被支持。
+
+### 本机构建
+
+```shell
+$ make
+```
+
+可用选项：
+
++ ``static`` 构建静态链接的二进制
++ ``loong64`` 构建 loong64 架构的二进制
++ ``windows`` 构建 windows amd64 可执行文件
+
+构建得到的二进制在 build 目录下。
+
+## 使用的端口
+
+broker （服务端）使用 TCP 端口 4646 作为和所有 client （客户端）交互的固定端口， client 通过这个端口向 broker 请求转发通道。
+
+```
+      (dynamic)        4646
++------------+          +---------------+
+| 主机  Host | quic/tcp | 服务端 Server |
+|   client   | <------> |     broker    |
++------------+          +---------------+
+```
+
+client 请求转发通道成功后获得一个端口对（ ``port1`` 和 ``port2 ``）。其中一个建立 client 和 broker 之间的连接，用作之后所有数据的交换；另一个用于客户机的连接。
+
+```
+          10800         (dynamic)               port1         port2         (dynamic)
++------------+           +------------+          +---------------+           +------------+
+| 主机  Host |  tcp/udp  | 主机  Host | quic/tcp | 服务端 Server |  tcp/udp  | 客机 Guest |
+|  TH Game   | <-------> |   client   | <------> |     broker    | <-------> |  TH Game   |
++------------+           +------------+          +---------------+           +------------+
+```
+
+通常 ``port1`` 、 ``port2`` 和其他动态端口均在 32768-65535 。
 
 ## 关于传输协议
 

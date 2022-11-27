@@ -1,6 +1,6 @@
 module github.com/weilinfox/youmu-thlink
 
-go 1.19
+go 1.18
 
 require (
 	github.com/lucas-clemente/quic-go v0.31.0
