@@ -100,8 +100,8 @@ func Main(locPort int, serverHost string, serverPort int) {
 	if err != nil {
 		logger.WithError(err).Fatal("QUIC connection failed ", err)
 	}
-	logger.Info("QUIC local address: ", qConn.LocalAddr())
-	logger.Info("QUIC remote address: ", qConn.RemoteAddr())
+	logger.Debug("QUIC local address: ", qConn.LocalAddr())
+	logger.Debug("QUIC remote address: ", qConn.RemoteAddr())
 
 	qStream, err := qConn.OpenStreamSync(context.Background())
 	if err != nil {
@@ -183,7 +183,7 @@ func handleUdp(serverConn quic.Stream) {
 					// logger.Info("Get PING")
 				}
 			}
-			
+
 		}
 
 		logger.Infof("Average compress rate %.3f", dataStream.CompressRateAva())

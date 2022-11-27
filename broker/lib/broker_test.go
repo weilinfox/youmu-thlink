@@ -163,8 +163,18 @@ func TestUDP(t *testing.T) {
 		defer wg.Done()
 
 		buf := make([]byte, utils.TransBufSize/2)
-		for i := 0; i < utils.TransBufSize/2; i++ {
-			buf[i] = byte(rand.Int())
+		// compressible random bytes
+		tmp := make([]byte, rand.Intn(10)+10)
+		for i := 0; i < len(tmp); i++ {
+			tmp[i] = byte(rand.Int())
+		}
+		for i := 0; i < utils.TransBufSize/2; {
+			b := rand.Intn(len(tmp))
+			for j := 0; j < b && i < utils.TransBufSize/2; {
+				buf[i] = tmp[j]
+				i++
+				j++
+			}
 		}
 
 		for i := 0; i < packageCnt; i++ {
@@ -185,6 +195,7 @@ func TestUDP(t *testing.T) {
 		defer wg.Done()
 
 		buf := make([]byte, utils.TransBufSize/2)
+		// incompressible random bytes
 		for i := 0; i < utils.TransBufSize/2; i++ {
 			buf[i] = byte(rand.Int())
 		}

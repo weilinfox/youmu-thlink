@@ -2,7 +2,7 @@ package utils
 
 import (
 	"bytes"
-	"compress/gzip"
+	"compress/lzw"
 
 	"github.com/sirupsen/logrus"
 )
@@ -27,23 +27,29 @@ func NewDataFrame(t DataType, b []byte) []byte {
 		return []byte{byte(t), 0x00, 0x00}
 	}
 
-	// gzip compress
-	buf := bytes.NewBuffer(nil)
-	gWriter, err := gzip.NewWriterLevel(buf, gzip.BestSpeed)
-	if err != nil {
-		logger.WithError(err).Error("New gzip compress session error")
-	}
-	l, err := gWriter.Write(b)
-	if err != nil {
-		logger.WithError(err).Error("Data compress error")
-	}
-	if l != len(b) {
-		logger.Errorf("Gzip compress data length not match: expect %d get %d", len(b), l)
-	}
-	gWriter.Close()
-	l = buf.Len()
+	if t == DATA {
+		useLZW := true
 
-	return append([]byte{byte(t), byte(l >> 8), byte(l)}, buf.Bytes()...)
+		// lzw compression
+		result := bytes.NewBuffer(nil)
+		lw := lzw.NewWriter(result, lzw.LSB, 8)
+		n, err := lw.Write(b)
+		lw.Close()
+		if n != len(b) || err != nil {
+			logger.WithError(err).Error("LZW compression error")
+			useLZW = false
+		} else if result.Len() >= len(b) {
+			useLZW = false
+		}
+
+		if useLZW {
+			return append([]byte{byte(LZW_DATA), byte(result.Len() >> 8), byte(result.Len())}, result.Bytes()...)
+		} else {
+			return append([]byte{byte(DATA), byte(len(b) >> 8), byte(len(b))}, b...)
+		}
+	}
+
+	return append([]byte{byte(t), byte(len(b) >> 8), byte(len(b))}, b...)
 }
 
 // DataStream parser to receive and parse data stream
@@ -66,6 +72,7 @@ const (
 	DATA DataType = iota
 	PING
 	TUNNEL
+	LZW_DATA
 )
 
 // NewDataStream return a empty data stream parser
@@ -88,35 +95,43 @@ func (c *DataStream) Append(b []byte) {
 func (c *DataStream) Parse() bool {
 	// get protocol header
 	if c.cachedDataType < 0 && len(c.cache) >= 3 {
+
 		c.cachedDataType = int(c.cache[0])
 		c.cachedDataLen = int(c.cache[1])<<8 + int(c.cache[2])
 		c.cache = c.cache[3:]
+
 	}
+
 	// get command body
 	if c.cachedDataType >= 0 && len(c.cache) >= c.cachedDataLen {
 
-		if c.cachedDataLen == 0 {
-			c.RawData = make([]byte, 0)
-			c.Length = 0
-		} else {
-			// gzip decompress
+		c.RawData = c.cache[:c.cachedDataLen]
+		c.Length, c.Type = c.cachedDataLen, DataType(c.cachedDataType)
+
+		c.totalData += float64(c.cachedDataLen)
+
+		if c.Type == LZW_DATA {
+
+			// lzw decompress
 			result := make([]byte, TransBufSize)
-			gReader, err := gzip.NewReader(bytes.NewBuffer(c.cache[:c.cachedDataLen]))
+			lr := lzw.NewReader(bytes.NewReader(c.RawData), lzw.LSB, 8)
+			n, err := lr.Read(result)
+			lr.Close()
 			if err != nil {
-				logger.WithError(err).Error("New gzip decompress session error", c.cachedDataLen, c.cachedDataType)
+				logger.WithError(err).Error("LZW decompression error")
 			}
-			c.Length, err = gReader.Read(result)
-			if err != nil && err.Error() != "EOF" {
-				logger.WithError(err).Error("Data decompress error")
-			}
-			gReader.Close()
 
-			c.RawData = result[:c.Length]
-			c.totalData += float64(c.cachedDataLen)
-			c.totalDecode += float64(c.Length)
+			c.RawData = result[:n]
+			c.Length = n
+			c.Type = DATA
+
+			c.totalDecode += float64(n)
+
+		} else {
+
+			c.totalDecode += float64(c.cachedDataLen)
+
 		}
-
-		c.Type = DataType(c.cachedDataType)
 
 		c.cache = c.cache[c.cachedDataLen:]
 		c.cachedDataLen = -1
@@ -130,6 +145,7 @@ func (c *DataStream) Parse() bool {
 
 // CompressRateAva average compress rate (calculated from decompressed data)
 func (c *DataStream) CompressRateAva() float64 {
+	
 	if c.totalData == 0 {
 		return 0
 	}
