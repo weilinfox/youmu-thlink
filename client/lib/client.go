@@ -110,11 +110,11 @@ func Main(locPort int, serverHost string, serverPort int) {
 	defer qStream.Close()
 
 	logger.Infof("Tunnel established for remote "+serverAddr.IP.String()+":%d", port2)
-	handleUdp(qStream)
+	handleUdp(qStream, serverAddr.IP.String(), port2)
 
 }
 
-func handleUdp(serverConn quic.Stream) {
+func handleUdp(serverConn quic.Stream, peerHost string, peerPort int) {
 
 	localHost := "localhost:" + strconv.Itoa(localPort)
 	var udpConn *net.UDPConn
@@ -125,6 +125,8 @@ func handleUdp(serverConn quic.Stream) {
 	}()
 
 	ch := make(chan int)
+
+	var pingTime time.Time
 	// PING
 	go func() {
 		defer func() {
@@ -132,13 +134,15 @@ func handleUdp(serverConn quic.Stream) {
 		}()
 
 		for {
+			pingTime = time.Now()
 			_, err := serverConn.Write(utils.NewDataFrame(utils.PING, nil))
 			if err != nil {
 				logger.Error("Send PING package failed")
 				break
 			}
 
-			time.Sleep(time.Second)
+			// no longer than 5 seconds
+			time.Sleep(time.Second * 2)
 		}
 	}()
 
@@ -180,7 +184,9 @@ func handleUdp(serverConn quic.Stream) {
 					}
 
 				case utils.PING:
-					// logger.Info("Get PING")
+					logger.WithField("peerHost", peerHost+":"+strconv.Itoa(peerPort)).
+						Infof("Delay %.2f ms\tCompress %.2f%%", float64(time.Now().Sub(pingTime).Nanoseconds())/1000000, dataStream.CompressRateAva()*100)
+
 				}
 			}
 
