@@ -11,7 +11,7 @@ import (
 func main() {
 
 	port := "10800"
-	serverHost := "inuyasha.love"
+	serverHost := "thlink.inuyasha.love"
 	sPort := "4646"
 	var localPort, serverPort int
 
@@ -38,7 +38,7 @@ func main() {
 	// broker address
 	for {
 		fmt.Println()
-		fmt.Println("Input broker address (default: inuyasha.love)")
+		fmt.Println("Input broker address (default: thlink.inuyasha.love)")
 		_, _ = fmt.Scanln(&serverHost)
 		_, err := net.ResolveUDPAddr("udp", serverHost+":0")
 		if err != nil {
