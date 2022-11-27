@@ -25,7 +25,13 @@
 
 ### TH09
 
-花映塚使用 DirectPlay 实现联机，故需要 adonis2 配合才能使用 thlink 联机。
+作品名称：
+
+|日文|中文|
+|:-|:-|
+|東方花映塚　～ Phantasmagoria of Flower View.|东方花映塚　～ Phantasmagoria of Flower View.|
+
+东方花映冢（东方花映塚）使用 DirectPlay 实现联机，故需要 adonis2 配合才能使用 thlink 联机。
 
 在 [Maribel Hearn's Touhou Portal](https://maribelhearn.com/pofv) 的相关页面可以找到需要的工具 [Adonis2](https://maribelhearn.com/mirror/PoFV-Adonis-VPatch-Goodies.zip) 。
 
@@ -39,13 +45,45 @@
 
 联机成功后 adomis2 会自动启动花映塚。
 
-### TH10.5
+### TH10.5 TH12.3 TH13.5 TH14.5
 
-绯想天直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
+作品名称：
 
-### TH12.3
+|日文|中文|
+|:-|:-|
+|東方緋想天　～ Scarlet Weather Rhapsody.|东方绯想天　～ Scarlet Weather Rhapsody.|
+|東方非想天則　～ 超弩級ギニョルの謎を追え|东方非想天则　～ 追寻特大型人偶之谜|
+|東方心綺楼　～ Hopeless Masquerade.|东方心绮楼　～ Hopeless Masquerade.|
+|東方深秘録　～ Urban Legend in Limbo.|东方深秘录　～ Urban Legend in Limbo.|
 
-非想天则同样直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
+游戏内文字：
+
+|日文|中文|
+|:-|:-|
+|対戦サーバーを立てる|建立对战服务器（主机端选择）|
+|IPとポートを指定してサーバーに接続|连接到指定IP和端口的服务器（客机选择）|
+|使用するポート|连接使用的端口号|
+
+直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
+
+### TH15.5
+
+作品名称：
+
+|日文|中文|
+|:-|:-|
+|東方憑依華　～ Antinomy of Common Flowers.|东方凭依华　～ Antinomy of Common Flowers.|
+
+游戏内文字：
+
+|日文|中文|
+|:-|:-|
+|対戦相手の接続を待つ|等待对方连接（主机端选择）|
+|接続先を指定して対戦相手接続に|指定对端以连接到对方（客机选择）|
+|観戦する|观战|
+|使用するポート番号|连接使用的端口号|
+
+直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
 
 ## 构建和部署
 
