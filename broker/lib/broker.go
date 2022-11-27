@@ -18,11 +18,11 @@ var peers = make(map[int]int)
 
 func Main(listenAddr string) {
 
-	tcpAddr, _ := net.ResolveTCPAddr("tcp4", listenAddr)
+	tcpAddr, _ := net.ResolveTCPAddr("tcp", listenAddr)
 
 	// start udp command interface
 	logger.Info("Start tcp command interface at " + tcpAddr.String())
-	listener, err := net.ListenTCP("tcp4", tcpAddr)
+	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		logger.WithError(err).Fatal("Adddress listen failed")
 	}
@@ -139,7 +139,7 @@ func newTcpTunnel(hostIP string) (int, int, error) {
 // start new udp tunnel
 func newUdpTunnel(hostIP string) (int, int, error) {
 
-	serveUdpAddr, err := net.ResolveUDPAddr("udp4", "0.0.0.0:0")
+	serveUdpAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
 
 	// quic tunnel between broker and client
 	tlsConfig, err := utils.GenerateTLSConfig()
@@ -151,7 +151,7 @@ func newUdpTunnel(hostIP string) (int, int, error) {
 		return 0, 0, err
 	}
 	logger.Info("QUIC listen at ", hostListener.Addr().String())
-	serveConn, err := net.ListenUDP("udp4", serveUdpAddr)
+	serveConn, err := net.ListenUDP("udp", serveUdpAddr)
 	if err != nil {
 		_ = hostListener.Close()
 		return 0, 0, err

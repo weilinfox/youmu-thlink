@@ -25,7 +25,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 	logger.Info("Will connect to local port ", localPort)
 	logger.Info("Will connect to broker address ", dileHost)
 
-	serverAddr, err := net.ResolveTCPAddr("tcp4", dileHost)
+	serverAddr, err := net.ResolveTCPAddr("tcp", dileHost)
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot resolve broker address")
 	}
@@ -39,7 +39,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 		timeSend := time.Now()
 
 		// send ping
-		conn, err := net.DialTCP("tcp4", nil, serverAddr)
+		conn, err := net.DialTCP("tcp", nil, serverAddr)
 		if err != nil {
 			logger.WithError(err).Fatal("Cannot connect to broker")
 		}
@@ -69,7 +69,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 
 	// new udp tunnel
 	logger.Info("Ask for new udp tunnel")
-	conn, err := net.DialTCP("tcp4", nil, serverAddr)
+	conn, err := net.DialTCP("tcp", nil, serverAddr)
 
 	conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{'u'}))
 	n, _ := conn.Read(buf)
@@ -209,8 +209,8 @@ func handleUdp(serverConn quic.Stream, peerHost string, peerPort int) {
 			var err error
 			if udpConn == nil {
 				logger.Info("Connect to local game")
-				udpAddr, _ := net.ResolveUDPAddr("udp4", localHost)
-				udpConn, err = net.DialUDP("udp4", nil, udpAddr)
+				udpAddr, _ := net.ResolveUDPAddr("udp", localHost)
+				udpConn, err = net.DialUDP("udp", nil, udpAddr)
 				if err != nil {
 					logger.WithError(err).Warn("Connect to local game error")
 				}
