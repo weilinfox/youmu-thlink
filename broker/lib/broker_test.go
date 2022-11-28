@@ -80,7 +80,7 @@ func TestPing(t *testing.T) {
 
 	dataStream := utils.NewDataStream()
 	dataStream.Append(buf[:n])
-	if !dataStream.Parse() || dataStream.Type != utils.PING {
+	if !dataStream.Parse() || dataStream.Type() != utils.PING {
 		t.Error("Not a ping response: ", buf[:n])
 	} else {
 		t.Log("Ping test passed")
@@ -113,12 +113,12 @@ func TestUDP(t *testing.T) {
 
 	dataStream := utils.NewDataStream()
 	dataStream.Append(buf[:n])
-	if !dataStream.Parse() || dataStream.Type != utils.TUNNEL {
+	if !dataStream.Parse() || dataStream.Type() != utils.TUNNEL {
 		t.Fatal("Not a new udp tunnel response: ", buf[:n])
 	}
 
-	port1 := int(dataStream.RawData[0])<<8 + int(dataStream.RawData[1])
-	port2 := int(dataStream.RawData[2])<<8 + int(dataStream.RawData[3])
+	port1 := int(dataStream.Data()[0])<<8 + int(dataStream.Data()[1])
+	port2 := int(dataStream.Data()[2])<<8 + int(dataStream.Data()[3])
 	if port1 <= 0 || port1 > 65535 || port2 <= 0 || port2 > 65535 {
 		t.Fatal("Invalid port peer", port1, port2)
 	}
@@ -261,10 +261,10 @@ func TestUDP(t *testing.T) {
 
 			dataStream.Append(buf[:n])
 			for dataStream.Parse() {
-				if dataStream.Type != utils.DATA {
+				if dataStream.Type() != utils.DATA {
 					t.Error("Not a DATA frame")
 				}
-				readQuicCnt += dataStream.Length
+				readQuicCnt += dataStream.Len()
 			}
 
 		}

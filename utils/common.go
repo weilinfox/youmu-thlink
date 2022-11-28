@@ -9,6 +9,8 @@ import (
 	"math/big"
 )
 
+const nextProto = "myonTHlink"
+
 // GenerateTLSConfig setup a bare-bones TLS config for the server
 func GenerateTLSConfig() (*tls.Config, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
@@ -29,6 +31,6 @@ func GenerateTLSConfig() (*tls.Config, error) {
 	}
 	return &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
-		NextProtos:   []string{"myonTHlink"},
+		NextProtos:   []string{nextProto},
 	}, nil
 }

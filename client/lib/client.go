@@ -59,7 +59,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 		// parse response
 		dataStream := utils.NewDataStream()
 		dataStream.Append(buf[:n])
-		if !dataStream.Parse() || dataStream.Type != utils.PING {
+		if !dataStream.Parse() || dataStream.Type() != utils.PING {
 			logger.Fatal("Invalid PING response from server")
 		}
 
@@ -77,13 +77,13 @@ func Main(locPort int, serverHost string, serverPort int) {
 
 	dataStream := utils.NewDataStream()
 	dataStream.Append(buf[:n])
-	if !dataStream.Parse() || dataStream.Type != utils.TUNNEL {
+	if !dataStream.Parse() || dataStream.Type() != utils.TUNNEL {
 		logger.Fatal("Invalid TUNNEL response from server")
 	}
 
 	var port1, port2 int
-	port1 = int(dataStream.RawData[0])<<8 + int(dataStream.RawData[1])
-	port2 = int(dataStream.RawData[2])<<8 + int(dataStream.RawData[3])
+	port1 = int(dataStream.Data()[0])<<8 + int(dataStream.Data()[1])
+	port2 = int(dataStream.Data()[2])<<8 + int(dataStream.Data()[3])
 	if port1 <= 0 || port1 > 65535 || port2 <= 0 || port2 > 65535 {
 		logger.Fatal("Invalid port peer ", port1, port2)
 	}
@@ -167,15 +167,15 @@ func handleUdp(serverConn quic.Stream, peerHost string, peerPort int) {
 
 			dataStream.Append(buf[:n])
 			for dataStream.Parse() {
-				switch dataStream.Type {
+				switch dataStream.Type() {
 
 				case utils.DATA:
 					if udpConn != nil {
 						// logger.Info("UDP write")
-						p, err := udpConn.Write(dataStream.RawData)
+						p, err := udpConn.Write(dataStream.Data())
 						// logger.Info("UDP write finish")
-						if err != nil || p != dataStream.Length {
-							logger.WithError(err).WithField("count", dataStream.Length).WithField("sent", p).
+						if err != nil || p != dataStream.Len() {
+							logger.WithError(err).WithField("count", dataStream.Len()).WithField("sent", p).
 								Warn("Send data to game error or send count not match ")
 							udpConn.Close()
 							udpConn = nil

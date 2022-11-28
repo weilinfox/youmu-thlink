@@ -57,7 +57,7 @@ func Main(listenAddr string) {
 			continue
 		}
 		go func() {
-			switch dataStream.Type {
+			switch dataStream.Type() {
 			case utils.PING:
 				// ping
 				_, err := conn.Write(utils.NewDataFrame(utils.PING, nil))
@@ -72,7 +72,7 @@ func Main(listenAddr string) {
 				var port1, port2 int
 				var err error
 
-				switch dataStream.RawData[0] {
+				switch dataStream.Data()[0] {
 				case 't':
 					logger.WithField("host", conn.RemoteAddr().String()).Info("New tcp tunnel")
 					host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
@@ -364,13 +364,13 @@ func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.
 			dataStream.Append(buf[:n])
 			for dataStream.Parse() {
 
-				switch dataStream.Type {
+				switch dataStream.Type() {
 				case utils.DATA:
-					if connected && dataStream.Length > 0 {
+					if connected && dataStream.Len() > 0 {
 						// logger.Info("udp write ", n)
-						p, err := serveConn.WriteToUDP(dataStream.RawData, remoteAddr)
+						p, err := serveConn.WriteToUDP(dataStream.Data(), remoteAddr)
 
-						if err != nil || p != dataStream.Length {
+						if err != nil || p != dataStream.Len() {
 							logger.WithError(err).Warn("UDP write error or write count not match")
 							break
 						}
