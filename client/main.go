@@ -78,6 +78,7 @@ func main() {
 	_, _ = fmt.Scanln(&tunnelType)
 
 	if tunnelType == "" {
+		fmt.Println("Use TCP tunnel")
 		tunnelType = "tcp"
 	} else {
 
