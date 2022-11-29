@@ -11,11 +11,8 @@ import (
 )
 
 var logger = logrus.WithField("client", "internal")
-var localPort int
 
-func Main(locPort int, serverHost string, serverPort int, tunnelType byte) {
-
-	localPort = locPort
+func Main(localPort int, serverHost string, serverPort int, tunnelType byte) {
 
 	dileHost := serverHost + ":" + strconv.Itoa(serverPort)
 
