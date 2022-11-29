@@ -524,6 +524,7 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 		}
 	}()
 
+	// TODO: bug here, it won't stop
 	<-ch
 
 }

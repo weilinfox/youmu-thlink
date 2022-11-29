@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 	"time"
@@ -80,7 +81,7 @@ func Main(listenAddr string) {
 				case 'u':
 					logger.WithField("host", conn.RemoteAddr().String()).Info("New udp tunnel")
 					host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-					port1, port2, err = newUdpTunnel(host)
+					port1, port2, err = newUdpTunnel(host, dataStream.Data()[1])
 				default:
 					logger.Warn("Invalid tunnel type")
 				}
@@ -137,11 +138,19 @@ func newTcpTunnel(hostIP string) (int, int, error) {
 }
 
 // start new udp tunnel
-func newUdpTunnel(hostIP string) (int, int, error) {
+func newUdpTunnel(hostIP string, tunnelType byte) (int, int, error) {
 
-	tunnel, err := utils.NewTunnel(&utils.TunnelConfig{
-		Type: utils.ListenQuicListenUdp,
-	})
+	config := utils.TunnelConfig{}
+	switch tunnelType {
+	case 'q':
+		config.Type = utils.ListenQuicListenUdp
+	case 't':
+		config.Type = utils.ListenTcpListenUdp
+	default:
+		return 0, 0, errors.New("no such tunnel type " + string(tunnelType))
+	}
+
+	tunnel, err := utils.NewTunnel(&config)
 	if err != nil {
 		return 0, 0, err
 	}

@@ -14,6 +14,7 @@ func main() {
 	serverHost := "thlink.inuyasha.love"
 	sPort := "4646"
 	var localPort, serverPort int
+	var tunnelType string
 
 	// local port 花 17723/10800 则 10800
 	for {
@@ -69,7 +70,30 @@ func main() {
 		break
 	}
 
-	client.Main(localPort, serverHost, serverPort)
+	// tunnel type
+	fmt.Println()
+	fmt.Println("Input tunnel type tcp/quic (default: tcp)")
+	_, _ = fmt.Scanln(&tunnelType)
+
+	if tunnelType == "" {
+		tunnelType = "tcp"
+	} else {
+
+		switch tunnelType[0] {
+		case 'q' | 'Q':
+			fmt.Println("Use QUIC tunnel")
+			tunnelType = "quic"
+		case 't' | 'T':
+			fmt.Println("Use TCP tunnel")
+			tunnelType = "tcp"
+		default:
+			fmt.Println("No such tunnel type, fallback to TCP")
+			tunnelType = "tcp"
+		}
+
+	}
+
+	client.Main(localPort, serverHost, serverPort, tunnelType[0])
 
 	fmt.Println("Enter to quit")
 	fmt.Scanln()

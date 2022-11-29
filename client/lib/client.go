@@ -13,7 +13,7 @@ import (
 var logger = logrus.WithField("client", "internal")
 var localPort int
 
-func Main(locPort int, serverHost string, serverPort int) {
+func Main(locPort int, serverHost string, serverPort int, tunnelType byte) {
 
 	localPort = locPort
 
@@ -68,7 +68,7 @@ func Main(locPort int, serverHost string, serverPort int) {
 	logger.Info("Ask for new udp tunnel")
 	conn, err := net.DialTCP("tcp", nil, serverAddr)
 
-	conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{'u'}))
+	conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{'u', tunnelType}))
 	n, _ := conn.Read(buf)
 	conn.Close()
 
@@ -86,11 +86,20 @@ func Main(locPort int, serverHost string, serverPort int) {
 	}
 
 	// New tunnel
-	tunnel, err := utils.NewTunnel(&utils.TunnelConfig{
-		Type:     utils.DialQuicDialUdp,
+	config := utils.TunnelConfig{
 		Address0: serverHost + ":" + strconv.Itoa(port1),
 		Address1: "localhost:" + strconv.Itoa(localPort),
-	})
+	}
+	switch tunnelType {
+	case 't':
+		config.Type = utils.DialTcpDialUdp
+	case 'q':
+		config.Type = utils.DialQuicDialUdp
+	default:
+		logger.Fatal("No such tunnel type: ", tunnelType)
+	}
+
+	tunnel, err := utils.NewTunnel(&config)
 	if err != nil {
 		logger.WithError(err).Fatal("New DialQuicDialUdp error")
 	}

@@ -100,7 +100,7 @@ func TestUDP(t *testing.T) {
 	buf := make([]byte, utils.TransBufSize)
 
 	// test udp
-	_, err = conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{'u'}))
+	_, err = conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{'u', 'q'}))
 	if err != nil {
 		t.Fatal("Fail to send new udp tunnel command: ", err.Error())
 	}
