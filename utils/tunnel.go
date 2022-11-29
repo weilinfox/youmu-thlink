@@ -17,6 +17,8 @@ import (
 type Tunnel struct {
 	tunnelType TunnelType
 
+	pingDelay time.Duration
+
 	configPort0 int
 	configPort1 int
 	connection0 interface{}
@@ -425,7 +427,8 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 				case PING:
 
 					if sendQuicPing {
-						loggerTunnel.Debugf("Delay %.2f ms", float64(time.Now().Sub(pingTime).Nanoseconds())/1000000)
+						t.pingDelay = time.Now().Sub(pingTime)
+						loggerTunnel.Debugf("Delay %.2f ms", float64(t.pingDelay.Nanoseconds())/1000000)
 					} else {
 						// not sending so response it
 						var err error
