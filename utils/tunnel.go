@@ -321,6 +321,11 @@ func (t *Tunnel) Type() TunnelType {
 	return t.tunnelType
 }
 
+// PingDelay delay between two tunnel
+func (t *Tunnel) PingDelay() time.Duration {
+	return t.pingDelay
+}
+
 // syncUdp sync data between quic connection and udp connection.
 // Support quic.Stream and *net.TCPConn.
 // quicPing: send ping package to avoid quic stream timeout or not;
