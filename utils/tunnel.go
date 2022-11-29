@@ -341,10 +341,10 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 		No      byte
 	}
 
-	var ch chan int
 	var udpAddr *net.UDPAddr
 	var pingTime time.Time
 	udpRemotes := make(map[string]udpRemote)
+	ch := make(chan int, 2)
 
 	// PING
 	if sendQuicPing {
@@ -524,7 +524,6 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 		}
 	}()
 
-	// TODO: bug here, it won't stop
 	<-ch
 
 }
