@@ -73,21 +73,23 @@ func Main(listenAddr string) {
 				var port1, port2 int
 				var err error
 
-				switch dataStream.Data()[0] {
-				case 't':
-					logger.WithField("host", conn.RemoteAddr().String()).Info("New tcp tunnel")
-					host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-					port1, port2, err = newTcpTunnel(host)
-				case 'u':
-					logger.WithField("host", conn.RemoteAddr().String()).Info("New udp tunnel")
-					host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-					port1, port2, err = newUdpTunnel(host, dataStream.Data()[1])
-				default:
-					logger.Warn("Invalid tunnel type")
-				}
+				if dataStream.Len() > 1 {
+					switch dataStream.Data()[0] {
+					case 't':
+						logger.WithField("host", conn.RemoteAddr().String()).Info("New tcp tunnel")
+						host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+						port1, port2, err = newTcpTunnel(host)
+					case 'u':
+						logger.WithField("host", conn.RemoteAddr().String()).Info("New udp tunnel")
+						host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+						port1, port2, err = newUdpTunnel(host, dataStream.Data()[1])
+					default:
+						logger.Warn("Invalid tunnel type")
+					}
 
-				if err != nil {
-					logger.WithError(err).Error("Failed to build new tunnel")
+					if err != nil {
+						logger.WithError(err).Error("Failed to build new tunnel")
+					}
 				}
 
 				_, err = conn.Write(utils.NewDataFrame(utils.TUNNEL, []byte{byte(port1 >> 8), byte(port1), byte(port2 >> 8), byte(port2)}))
