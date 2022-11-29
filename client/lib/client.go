@@ -1,15 +1,12 @@
 package client
 
 import (
-	"context"
-	"crypto/tls"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/weilinfox/youmu-thlink/utils"
 
-	"github.com/lucas-clemente/quic-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -88,160 +85,22 @@ func Main(locPort int, serverHost string, serverPort int) {
 		logger.Fatal("Invalid port peer ", port1, port2)
 	}
 
-	// connect to broker via QUIC
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		NextProtos:         []string{"myonTHlink"},
-	}
+	// New tunnel
+	tunnel, err := utils.NewTunnel(&utils.TunnelConfig{
+		Type:     utils.DialQuicDialUdp,
+		Address0: serverHost + ":" + strconv.Itoa(port1),
+		Address1: "localhost:" + strconv.Itoa(localPort),
+	})
 	if err != nil {
-		logger.WithError(err).Fatal("Generate TLS Config error ", err)
+		logger.WithError(err).Fatal("New DialQuicDialUdp error")
 	}
-	qConn, err := quic.DialAddr(serverHost+":"+strconv.Itoa(port1), tlsConfig, nil)
-	if err != nil {
-		logger.WithError(err).Fatal("QUIC connection failed ", err)
-	}
-	logger.Debug("QUIC local address: ", qConn.LocalAddr())
-	logger.Debug("QUIC remote address: ", qConn.RemoteAddr())
-
-	qStream, err := qConn.OpenStreamSync(context.Background())
-	if err != nil {
-		logger.WithError(err).Fatal("QUIC stream open error", err)
-	}
-	defer qStream.Close()
+	defer tunnel.Close()
 
 	logger.Infof("Tunnel established for remote "+serverAddr.IP.String()+":%d", port2)
-	handleUdp(qStream, serverAddr.IP.String(), port2)
 
-}
-
-func handleUdp(serverConn quic.Stream, peerHost string, peerPort int) {
-
-	localHost := "localhost:" + strconv.Itoa(localPort)
-	var udpConn *net.UDPConn
-	defer func() {
-		if udpConn != nil {
-			udpConn.Close()
-		}
-	}()
-
-	ch := make(chan int)
-
-	var pingTime time.Time
-	// PING
-	go func() {
-		defer func() {
-			ch <- 1
-		}()
-
-		for {
-			pingTime = time.Now()
-			_, err := serverConn.Write(utils.NewDataFrame(utils.PING, nil))
-			if err != nil {
-				logger.Error("Send PING package failed")
-				break
-			}
-
-			// no longer than 5 seconds
-			time.Sleep(time.Second * 2)
-		}
-	}()
-
-	// QUIC -> UDP
-	go func() {
-		defer func() {
-			ch <- 1
-		}()
-
-		dataStream := utils.NewDataStream()
-		buf := make([]byte, utils.TransBufSize)
-
-		for {
-
-			// logger.Info("QUIC read")
-			n, err := serverConn.Read(buf)
-			// logger.Info("QUIC read finish")
-			if err != nil {
-				logger.WithError(err).Warn("Read data from QUIC stream error")
-				break
-			}
-
-			dataStream.Append(buf[:n])
-			for dataStream.Parse() {
-				switch dataStream.Type() {
-
-				case utils.DATA:
-					if udpConn != nil {
-						// logger.Info("UDP write")
-						p, err := udpConn.Write(dataStream.Data())
-						// logger.Info("UDP write finish")
-						if err != nil || p != dataStream.Len() {
-							logger.WithError(err).WithField("count", dataStream.Len()).WithField("sent", p).
-								Warn("Send data to game error or send count not match ")
-							udpConn.Close()
-							udpConn = nil
-							continue
-						}
-					}
-
-				case utils.PING:
-					logger.WithField("peerHost", peerHost+":"+strconv.Itoa(peerPort)).
-						Infof("Delay %.2f ms\tCompress %.2f%%", float64(time.Now().Sub(pingTime).Nanoseconds())/1000000, dataStream.CompressRateAva()*100)
-
-				}
-			}
-
-		}
-
-		logger.Infof("Average compress rate %.3f", dataStream.CompressRateAva())
-
-	}()
-
-	// UDP -> QUIC
-	go func() {
-		defer func() {
-			ch <- 1
-		}()
-
-		buf := make([]byte, utils.TransBufSize)
-
-		for {
-
-			var err error
-			if udpConn == nil {
-				logger.Info("Connect to local game")
-				udpAddr, _ := net.ResolveUDPAddr("udp", localHost)
-				udpConn, err = net.DialUDP("udp", nil, udpAddr)
-				if err != nil {
-					logger.WithError(err).Warn("Connect to local game error")
-				}
-			}
-
-			if udpConn != nil {
-				// logger.Info("UDP read")
-				// udpConn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
-				n, err := udpConn.Read(buf)
-				// logger.Info("UDP read finish")
-				if err != nil {
-					logger.WithError(err).Warn("Read data from local game error")
-					udpConn.Close()
-					udpConn = nil
-					continue
-				}
-
-				// logger.Info("QUIC write")
-				gData := utils.NewDataFrame(utils.DATA, buf[:n])
-				p, err := serverConn.Write(gData)
-				// logger.Info("QUIC write finish")
-				if err != nil || p != len(gData) {
-					logger.WithError(err).WithField("count", len(gData)).WithField("sent", p).
-						Warn("Send data to QUIC stream error or send count not match")
-					break
-				}
-			}
-
-		}
-	}()
-
-	<-ch
+	err = tunnel.Serve()
+	if err != nil {
+		logger.WithError(err).Fatal("Tunnel serve error")
+	}
 
 }
