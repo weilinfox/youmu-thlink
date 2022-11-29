@@ -3,6 +3,7 @@ module github.com/weilinfox/youmu-thlink
 go 1.18
 
 require (
+	github.com/gotk3/gotk3 v0.6.1
 	github.com/lucas-clemente/quic-go v0.31.0
 	github.com/sirupsen/logrus v1.9.0
 )

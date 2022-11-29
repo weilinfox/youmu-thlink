@@ -13,6 +13,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	// TunnelVersion tunnel compatible version
+	TunnelVersion = 1
+	Version       = "0.0.6"
+)
+
 // Tunnel just like a bidirectional pipe
 type Tunnel struct {
 	tunnelType TunnelType
