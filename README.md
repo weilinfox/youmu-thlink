@@ -7,17 +7,17 @@
 ## 特性
 
 1. 使用 [QUIC](https://en.wikipedia.org/wiki/QUIC)/TCP 作为传输协议
-2. 支持使用 UDP 进行联机的东方作品
-3. 可配置的监听端口和服务器地址，方便自搭建
-4. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
-5. 显示延迟，字符界面 log 直接打印，方便 debug
-6. 代码乱七八糟
+2. 可选的 QUIC 和 TCP 传输
+3. 支持使用 UDP 进行联机的东方作品
+4. 可配置的监听端口和服务器地址，方便自搭建
+5. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
+6. 显示延迟，字符界面 log 直接打印，方便 debug
+7. 代码乱七八糟
 
 ## TODO
 
 1. 观战支持
-2. 可选的 QUIC 和 TCP 传输
-3. 测试更多作品
+2. 测试更多作品
 
 ## 使用方法
 
@@ -134,3 +134,4 @@ client 请求转发通道成功后获得一个端口对（ ``port1`` 和 ``port2
 + v0.0.1 使用了 tcp ，虽然实时性不是很好（？）但是在国内网络环境下比较稳定
 + v0.0.3 使用了 [kcp](https://github.com/skywind3000/kcp) ，试图提升一下性能，部署以后发现从 broker 发往 client 的包都消失了……
 + v0.0.5 开始使用 [quic](https://en.wikipedia.org/wiki/QUIC) ，测试效果总体来说比 kcp 稳定得多
++ V0.0.6 开始可以在客户端自主选择使用 quic 或 tcp 传输，增强在复杂网络环境的适应性
