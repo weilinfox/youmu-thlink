@@ -1,9 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
+	"strings"
 
 	client "github.com/weilinfox/youmu-thlink/client/lib"
 
@@ -12,108 +15,41 @@ import (
 
 func main() {
 
-	port := "10800"
-	serverHost := "thlink.inuyasha.love"
-	sPort := "4646"
-	var localPort, serverPort int
-	var tunnelType string
+	localPort := flag.Int("p", 10080, "local port will connect to")
+	server := flag.String("s", "thlink.inuyasha.love:4646", "hostname of server")
+	tunnelType := flag.String("t", "tcp", "tunnel type, support tcp and quic")
+	debug := flag.Bool("d", false, "debug mode")
 
-	// local port 花 17723/10800 则 10800
-	for {
-		fmt.Println()
-		fmt.Println("Input local port (default: 10800)")
-		_, _ = fmt.Scanln(&port)
+	flag.Parse()
 
-		localPort64, err := strconv.ParseInt(port, 10, 32)
-		if err != nil {
-			fmt.Println("Invalid input port")
-			continue
-		}
-		localPort = int(localPort64)
-		if localPort <= 0 || localPort > 65535 {
-			fmt.Println("Invalid port ", localPort)
-			continue
-		}
-
-		break
+	if *localPort <= 0 || *localPort > 65535 {
+		fmt.Println("Invalid port ", localPort)
+		os.Exit(1)
 	}
 
-	// broker address
-	for {
-		fmt.Println()
-		fmt.Println("Input broker address (default: thlink.inuyasha.love)")
-		_, _ = fmt.Scanln(&serverHost)
-		_, err := net.ResolveUDPAddr("udp", serverHost+":0")
-		if err != nil {
-			fmt.Println("Cannot resolve host: ", serverHost)
-			continue
-		}
-
-		break
+	host, port, err := net.SplitHostPort(*server)
+	if err != nil {
+		fmt.Println("Invalid hostname ", server)
+	}
+	port64, err := strconv.ParseInt(port, 10, 32)
+	if port64 <= 0 || port64 > 65535 {
+		fmt.Println("Invalid port ", port64)
+		os.Exit(1)
 	}
 
-	// broker port
-	for {
-		fmt.Println()
-		fmt.Println("Input broker port (default: 4646)")
-		_, _ = fmt.Scanln(&sPort)
-
-		serverPort64, err := strconv.ParseInt(sPort, 10, 32)
-		if err != nil {
-			fmt.Println("Invalid input port")
-			continue
-		}
-		serverPort = int(serverPort64)
-		if serverPort <= 0 || serverPort > 65535 {
-			fmt.Println("Invalid port ", serverPort)
-			continue
-		}
-
-		break
+	if strings.ToLower(*tunnelType) != "tcp" && strings.ToLower(*tunnelType) != "quic" {
+		fmt.Println("Invalid tunnel type ", *tunnelType)
+		os.Exit(1)
 	}
 
-	// tunnel type
-	fmt.Println()
-	fmt.Println("Input tunnel type tcp/quic (default: tcp)")
-	_, _ = fmt.Scanln(&tunnelType)
-
-	if tunnelType == "" {
-		fmt.Println("Use TCP tunnel")
-		tunnelType = "tcp"
-	} else {
-
-		switch tunnelType[0] {
-		case 'q' | 'Q':
-			fmt.Println("Use QUIC tunnel")
-			tunnelType = "quic"
-		case 't' | 'T':
-			fmt.Println("Use TCP tunnel")
-			tunnelType = "tcp"
-		default:
-			fmt.Println("No such tunnel type, fallback to TCP")
-			tunnelType = "tcp"
-		}
-
-	}
-
-	var debug string
-	fmt.Println()
-	fmt.Println("Show debug info? (Y/n)")
-	fmt.Scanln(&debug)
-	if debug == "" {
-		debug = "Y"
-	}
-	switch debug[0] {
-	case 'N' | 'n':
-		fmt.Println("Set logger level to info")
-		logrus.SetLevel(logrus.InfoLevel)
-	default:
-		fmt.Println("Set logger level to debug")
+	if *debug {
 		logrus.SetLevel(logrus.DebugLevel)
+	} else {
+		logrus.SetLevel(logrus.InfoLevel)
 	}
 
-	client.Main(localPort, serverHost, serverPort, tunnelType[0])
+	client.Main(*localPort, host, int(port64), (*tunnelType)[0])
 
-	fmt.Println("Enter to quit")
-	fmt.Scanln()
+	// fmt.Println("Enter to quit")
+	// _, _ = fmt.Scanln()
 }

@@ -19,7 +19,10 @@ var peers = make(map[int]int)
 
 func Main(listenAddr string) {
 
-	tcpAddr, _ := net.ResolveTCPAddr("tcp", listenAddr)
+	tcpAddr, err := net.ResolveTCPAddr("tcp", listenAddr)
+	if err != nil {
+		logger.WithError(err).Fatal("Adddress resolve error")
+	}
 
 	// start udp command interface
 	logger.Info("Start tcp command interface at " + tcpAddr.String())

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 
 	broker "github.com/weilinfox/youmu-thlink/broker/lib"
@@ -8,10 +9,13 @@ import (
 
 func main() {
 
-	listenHost := "0.0.0.0:4646"
+	listenHost := flag.String("s", "0.0.0.0:4646", "listen hostname")
 
-	broker.Main(listenHost)
+	flag.Parse()
+
+	broker.Main(*listenHost)
 
 	fmt.Println("Enter to quit")
-	fmt.Scanln()
+	_, _ = fmt.Scanln()
+
 }
