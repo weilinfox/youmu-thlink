@@ -20,6 +20,7 @@ windows:
 	GOOS=windows GOARCH=amd64 go build -o ./build/thlink-client-amd64-windows.exe ./client/
 
 test:
+	go test ./utils
 	go test ./broker/lib
 
 clean:
