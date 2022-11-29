@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	client "github.com/weilinfox/youmu-thlink/client/lib"
+
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -91,6 +93,22 @@ func main() {
 			tunnelType = "tcp"
 		}
 
+	}
+
+	var debug string
+	fmt.Println()
+	fmt.Println("Show debug info? (Y/n)")
+	fmt.Scanln(&debug)
+	if debug == "" {
+		debug = "Y"
+	}
+	switch debug[0] {
+	case 'N' | 'n':
+		fmt.Println("Set logger level to info")
+		logrus.SetLevel(logrus.InfoLevel)
+	default:
+		fmt.Println("Set logger level to debug")
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 
 	client.Main(localPort, serverHost, serverPort, tunnelType[0])
