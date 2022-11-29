@@ -139,35 +139,20 @@ func newTcpTunnel(hostIP string) (int, int, error) {
 // start new udp tunnel
 func newUdpTunnel(hostIP string) (int, int, error) {
 
-	serveUdpAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
-
-	// quic tunnel between broker and client
-	tlsConfig, err := utils.GenerateTLSConfig()
+	tunnel, err := utils.NewTunnel(&utils.TunnelConfig{
+		Type: utils.ListenQuicListenUdp,
+	})
 	if err != nil {
 		return 0, 0, err
 	}
-	hostListener, err := quic.ListenAddr("0.0.0.0:0", tlsConfig, nil)
-	if err != nil {
-		return 0, 0, err
-	}
-	logger.Info("QUIC listen at ", hostListener.Addr().String())
-	serveConn, err := net.ListenUDP("udp", serveUdpAddr)
-	if err != nil {
-		_ = hostListener.Close()
-		return 0, 0, err
-	}
-	logger.Info("UDP listen at ", serveConn.LocalAddr().String())
 
-	_, hostPort, _ := net.SplitHostPort(hostListener.Addr().String())
-	_, servePort, _ := net.SplitHostPort(serveConn.LocalAddr().String())
-	iHostPort, _ := strconv.ParseInt(hostPort, 10, 32)
-	iServePort, _ := strconv.ParseInt(servePort, 10, 32)
+	port1, port2 := tunnel.Ports()
+	peers[port1] = port2
+	logger.Infof("New udp peer " + strconv.Itoa(port1) + "-" + strconv.Itoa(port2))
 
-	logger.Infof("New udp peer " + hostPort + "-" + servePort)
-	peers[int(iHostPort)] = int(iServePort)
-	go handleUdpTunnel(int(iHostPort), hostListener, serveConn)
+	go handleUdpTunnel(tunnel)
 
-	return int(iHostPort), int(iServePort), nil
+	return port1, port2, nil
 
 }
 
@@ -288,138 +273,19 @@ func handleTcpTunnel(clientPort int, hostListener quic.Listener, serveListener *
 	<-ch
 }
 
-func handleUdpTunnel(clientPort int, hostListener quic.Listener, serveConn *net.UDPConn) {
+func handleUdpTunnel(tunnel *utils.Tunnel) {
+
+	port1, port2 := tunnel.Ports()
 
 	defer func() {
-		delete(peers, clientPort)
+		delete(peers, port1)
 	}()
-	defer logger.Infof("End udp peer %d-%d", clientPort, peers[clientPort])
+	defer logger.Infof("End udp peer %d-%d", port1, port2)
+	defer tunnel.Close()
 
-	defer hostListener.Close()
-	defer serveConn.Close()
-
-	// client connect tunnel in 10s
-	var waitMs int64 = 0
-	var qConn quic.Connection
-	var err error
-	for {
-		switch waitMs {
-		case 0:
-			go func() {
-				qConn, err = hostListener.Accept(context.Background())
-			}()
-
-		default:
-			if qConn == nil && err == nil {
-				time.Sleep(time.Millisecond)
-			}
-		}
-
-		if qConn != nil || err != nil {
-			break
-		}
-
-		waitMs++
-		if waitMs > 1000*10 {
-			logger.WithError(err).Error("Get client connection timeout")
-
-			return
-		}
-	}
+	err := tunnel.Serve()
 	if err != nil {
-		logger.WithError(err).Error("Get client connection failed")
-		return
+		logger.WithError(err).Error("Tunnel serve error")
 	}
 
-	qStream, err := qConn.AcceptStream(context.Background())
-	if err != nil {
-		logger.WithError(err).Error("Get client stream failed")
-		return
-	}
-	defer qStream.Close()
-
-	var remoteAddr *net.UDPAddr
-	connected := false
-
-	ch := make(chan int)
-
-	// QUIC -> UDP
-	go func() {
-		defer func() {
-			ch <- 1
-		}()
-
-		dataStream := utils.NewDataStream()
-		buf := make([]byte, utils.TransBufSize)
-
-		for {
-			// read from quic
-			n, err := qStream.Read(buf)
-			// logger.Info("quic read ", n)
-			if err != nil {
-				logger.WithError(err).Warn("QUIC read error")
-				break
-			}
-
-			dataStream.Append(buf[:n])
-			for dataStream.Parse() {
-
-				switch dataStream.Type() {
-				case utils.DATA:
-					if connected && dataStream.Len() > 0 {
-						// logger.Info("udp write ", n)
-						p, err := serveConn.WriteToUDP(dataStream.Data(), remoteAddr)
-
-						if err != nil || p != dataStream.Len() {
-							logger.WithError(err).Warn("UDP write error or write count not match")
-							break
-						}
-					}
-
-				case utils.PING:
-					qStream.Write(utils.NewDataFrame(utils.PING, nil))
-				}
-
-			}
-		}
-
-	}()
-
-	// UDP -> QUIC
-	go func() {
-		defer func() {
-			ch <- 1
-		}()
-
-		var n int
-		buf := make([]byte, utils.TransBufSize)
-
-		for {
-			n, remoteAddr, err = serveConn.ReadFromUDP(buf)
-			// logger.Info("udp read ", n)
-			if err != nil {
-				logger.WithError(err).Warn("UDP read error")
-				break
-			}
-			if !connected {
-				connected = true
-				logger.WithField("host", remoteAddr.String()).Info("Remote connected")
-			}
-
-			if n > 0 {
-				// logger.Info("quic write ", n)
-				gData := utils.NewDataFrame(utils.DATA, buf[:n])
-				p, err := qStream.Write(gData)
-
-				if err != nil || p != len(gData) {
-					logger.WithError(err).WithField("count", len(gData)).WithField("sent", p).
-						Warn("QUIC write error or write count not match")
-					break
-				}
-			}
-		}
-
-	}()
-
-	<-ch
 }
