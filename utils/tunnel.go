@@ -97,7 +97,42 @@ func NewTunnel(config *TunnelConfig) (*Tunnel, error) {
 
 	case ListenTcpListenUdp:
 
-		// TODO: tcp tunnel
+		// listen tcp port
+		tcpAddr, err := net.ResolveTCPAddr("tcp", config.Address0)
+		if err != nil {
+			return nil, err
+		}
+		tcpListener, err := net.ListenTCP("tcp", tcpAddr)
+		if err != nil {
+			return nil, err
+		}
+		loggerTunnel.Debug("TCP listen at ", tcpListener.Addr().String())
+
+		// listen udp port
+		udpAddr, err := net.ResolveUDPAddr("udp", config.Address1)
+		if err != nil {
+			_ = tcpListener.Close()
+			return nil, err
+		}
+		udpConn, err := net.ListenUDP("udp", udpAddr)
+		if err != nil {
+			_ = tcpListener.Close()
+			return nil, err
+		}
+		loggerTunnel.Debug("UDP listen at ", udpConn.LocalAddr().String())
+
+		_, sport0, _ := net.SplitHostPort(tcpListener.Addr().String())
+		_, sport1, _ := net.SplitHostPort(udpConn.LocalAddr().String())
+		port0, _ := strconv.ParseInt(sport0, 10, 32)
+		port1, _ := strconv.ParseInt(sport1, 10, 32)
+
+		return &Tunnel{
+			tunnelType:  config.Type,
+			configPort0: int(port0),
+			connection0: tcpListener,
+			configPort1: int(port1),
+			connection1: udpConn,
+		}, nil
 
 	case DialQuicDialUdp:
 
@@ -114,7 +149,7 @@ func NewTunnel(config *TunnelConfig) (*Tunnel, error) {
 		if err != nil {
 			return nil, err
 		}
-		loggerTunnel.Debug("QUIC dial ", config.Address0)
+		loggerTunnel.Debug("QUIC dial ", quicConn.RemoteAddr())
 
 		// connect udp addr
 		udpAddr, err := net.ResolveUDPAddr("udp", config.Address1)
@@ -144,7 +179,42 @@ func NewTunnel(config *TunnelConfig) (*Tunnel, error) {
 
 	case DialTcpDialUdp:
 
-		// TODO: tcp tunnel
+		// connect tcp addr
+		tcpAddr, err := net.ResolveTCPAddr("tcp", config.Address0)
+		if err != nil {
+			return nil, err
+		}
+		tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+		if err != nil {
+			return nil, err
+		}
+		loggerTunnel.Debug("TCP dial ", tcpConn.RemoteAddr())
+
+		// connect udp addr
+		udpAddr, err := net.ResolveUDPAddr("udp", config.Address1)
+		if err != nil {
+			_ = tcpConn.Close()
+			return nil, err
+		}
+		udpConn, err := net.DialUDP("udp", nil, udpAddr)
+		if err != nil {
+			_ = tcpConn.Close()
+			return nil, err
+		}
+		loggerTunnel.Debug("UDP dial ", config.Address1)
+
+		_, sport0, _ := net.SplitHostPort(config.Address0)
+		_, sport1, _ := net.SplitHostPort(config.Address1)
+		port0, _ := strconv.ParseInt(sport0, 10, 32)
+		port1, _ := strconv.ParseInt(sport1, 10, 32)
+
+		return &Tunnel{
+			tunnelType:  config.Type,
+			configPort0: int(port0),
+			connection0: tcpConn,
+			configPort1: int(port1),
+			connection1: udpConn,
+		}, nil
 
 	}
 
@@ -154,33 +224,34 @@ func NewTunnel(config *TunnelConfig) (*Tunnel, error) {
 // Close make sure all connection be closed after use
 func (t *Tunnel) Close() {
 
-	switch t.tunnelType {
-	case ListenQuicListenUdp:
-
-		if t.connection0 != nil {
-			_ = t.connection0.(quic.Listener).Close()
+	if t.connection0 != nil {
+		switch tt := t.connection0.(type) {
+		case quic.Listener:
+			_ = tt.Close()
+		case quic.Stream:
+			_ = tt.Close()
+		case *net.TCPListener:
+			_ = tt.Close()
+		case *net.TCPConn:
+			_ = tt.Close()
+		default:
+			loggerTunnel.Errorf("I do not know how to close it: %T", tt)
 		}
-		if t.connection1 != nil {
-			_ = t.connection1.(*net.UDPConn).Close()
+	}
+
+	if t.connection1 != nil {
+		switch tt := t.connection1.(type) {
+		case quic.Listener:
+			_ = tt.Close()
+		case quic.Stream:
+			_ = tt.Close()
+		case *net.UDPConn:
+			_ = tt.Close()
+		case *net.TCPConn:
+			_ = tt.Close()
+		default:
+			loggerTunnel.Errorf("I do not know how to close it: %T", tt)
 		}
-
-	case ListenTcpListenUdp:
-
-		// TODO:
-
-	case DialQuicDialUdp:
-
-		if t.connection0 != nil {
-			_ = t.connection0.(quic.Stream).Close()
-		}
-		if t.connection1 != nil {
-			_ = t.connection1.(*net.UDPConn).Close()
-		}
-
-	case DialTcpDialUdp:
-
-		// TODO:
-
 	}
 
 }
@@ -206,19 +277,32 @@ func (t *Tunnel) Serve() error {
 
 		defer quicStream.Close()
 
-		t.syncQuicUdp(quicStream, t.connection1.(*net.UDPConn), false, false)
+		t.syncUdp(quicStream, t.connection1.(*net.UDPConn), false, false)
 
 	case ListenTcpListenUdp:
 
-		// TODO:
+		// accept tcp connection
+		err := t.connection0.(*net.TCPListener).SetDeadline(time.Now().Add(time.Second * 10))
+		if err != nil {
+			return err
+		}
+		tcpConn, err := t.connection0.(*net.TCPListener).AcceptTCP()
+		if err != nil {
+			return err
+		}
+		loggerTunnel.Debug("Accept tcp connection from ", tcpConn.RemoteAddr().String())
+
+		defer tcpConn.Close()
+
+		t.syncUdp(tcpConn, t.connection1.(*net.UDPConn), false, false)
 
 	case DialQuicDialUdp:
 
-		t.syncQuicUdp(t.connection0.(quic.Stream), t.connection1.(*net.UDPConn), true, true)
+		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), true, true)
 
 	case DialTcpDialUdp:
 
-		// TODO:
+		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), true, true)
 
 	}
 
@@ -235,10 +319,19 @@ func (t *Tunnel) Type() TunnelType {
 	return t.tunnelType
 }
 
-// syncQuicUdp sync data between quic connection and udp connection.
+// syncUdp sync data between quic connection and udp connection.
+// Support quic.Stream and *net.TCPConn.
 // quicPing: send ping package to avoid quic stream timeout or not;
 // udpConnected: udp is waiting for connection or dial to address
-func (t *Tunnel) syncQuicUdp(stream quic.Stream, udpConn *net.UDPConn, sendQuicPing bool, udpConnected bool) {
+func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bool, udpConnected bool) {
+
+	switch conn.(type) {
+	case quic.Stream:
+	case *net.TCPConn:
+	default:
+		loggerTunnel.Errorf("Unsupported connection type: %T", conn)
+		return
+	}
 
 	const maxUdpRemoteNo byte = 0xFF
 	type udpRemote struct {
@@ -260,7 +353,15 @@ func (t *Tunnel) syncQuicUdp(stream quic.Stream, udpConn *net.UDPConn, sendQuicP
 			}()
 
 			for {
-				_, err := stream.Write(NewDataFrame(PING, nil))
+				var err error
+
+				switch stream := conn.(type) {
+				case quic.Stream:
+					_, err = stream.Write(NewDataFrame(PING, nil))
+				case *net.TCPConn:
+					_, err = stream.Write(NewDataFrame(PING, nil))
+				}
+
 				pingTime = time.Now()
 				if err != nil {
 					loggerTunnel.Error("Send PING package failed")
@@ -287,11 +388,15 @@ func (t *Tunnel) syncQuicUdp(stream quic.Stream, udpConn *net.UDPConn, sendQuicP
 
 		for {
 
-			// logger.Info("QUIC read")
-			cnt, err = stream.Read(buf)
-			// logger.Info("QUIC read finish")
+			switch stream := conn.(type) {
+			case quic.Stream:
+				cnt, err = stream.Read(buf)
+			case *net.TCPConn:
+				cnt, err = stream.Read(buf)
+			}
+
 			if err != nil {
-				loggerTunnel.WithError(err).Warn("Read data from QUIC stream error")
+				loggerTunnel.WithError(err).Warn("Read data from QUIC/TCP stream error")
 				break
 			}
 
@@ -323,7 +428,15 @@ func (t *Tunnel) syncQuicUdp(stream quic.Stream, udpConn *net.UDPConn, sendQuicP
 						loggerTunnel.Debugf("Delay %.2f ms", float64(time.Now().Sub(pingTime).Nanoseconds())/1000000)
 					} else {
 						// not sending so response it
-						_, err = stream.Write(NewDataFrame(PING, nil))
+						var err error
+
+						switch stream := conn.(type) {
+						case quic.Stream:
+							_, err = stream.Write(NewDataFrame(PING, nil))
+						case *net.TCPConn:
+							_, err = stream.Write(NewDataFrame(PING, nil))
+						}
+
 						if err != nil {
 							loggerTunnel.Error("Send PING package failed")
 							break
@@ -355,13 +468,13 @@ func (t *Tunnel) syncQuicUdp(stream quic.Stream, udpConn *net.UDPConn, sendQuicP
 			if udpConnected {
 				cnt, err = udpConn.Read(buf)
 				if err != nil {
-					loggerTunnel.WithError(err).Error("Read data from connected udp error")
+					loggerTunnel.WithError(err).Warn("Read data from connected udp error")
 					break
 				}
 			} else {
 				cnt, udpAddr, err = udpConn.ReadFromUDP(buf)
 				if err != nil {
-					loggerTunnel.WithError(err).Error("Read data from unconnected udp error")
+					loggerTunnel.WithError(err).Warn("Read data from unconnected udp error")
 					break
 				}
 
@@ -384,7 +497,6 @@ func (t *Tunnel) syncQuicUdp(stream quic.Stream, udpConn *net.UDPConn, sendQuicP
 
 			}
 
-			// logger.Info("QUIC write")
 			var data []byte
 			if udpConnected {
 				data = NewDataFrame(DATA, buf[:cnt])
@@ -392,11 +504,17 @@ func (t *Tunnel) syncQuicUdp(stream quic.Stream, udpConn *net.UDPConn, sendQuicP
 				// TODO: sign DATA with remoteNo
 				data = NewDataFrame(DATA, buf[:cnt])
 			}
-			wcnt, err = stream.Write(data)
-			// logger.Info("QUIC write finish")
+
+			switch stream := conn.(type) {
+			case quic.Stream:
+				wcnt, err = stream.Write(data)
+			case *net.TCPConn:
+				wcnt, err = stream.Write(data)
+			}
+
 			if err != nil || wcnt != len(data) {
 				loggerTunnel.WithError(err).WithField("count", len(data)).WithField("sent", wcnt).
-					Warn("Send data to QUIC stream error or send count not match")
+					Warn("Send data to QUIC/TCP stream error or send count not match")
 				break
 			}
 

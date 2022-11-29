@@ -6,7 +6,7 @@
 
 ## 特性
 
-1. 使用 [QUIC](https://en.wikipedia.org/wiki/QUIC) 作为传输协议
+1. 使用 [QUIC](https://en.wikipedia.org/wiki/QUIC)/TCP 作为传输协议
 2. 支持使用 UDP 进行联机的东方作品
 3. 可配置的监听端口和服务器地址，方便自搭建
 4. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽

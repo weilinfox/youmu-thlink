@@ -11,20 +11,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TestTunnel goroutine0 <--> udpConn <--> tunnel1 <--> tunnel0 <--> goroutine1
-func TestTunnel(t *testing.T) {
+func TestQuicTunnel(t *testing.T) {
 
 	logrus.SetLevel(logrus.DebugLevel)
 
 	// tunnel0
-	t.Log("Setup tunnel 0")
+	t.Log("Setup quic tunnel 0")
 	tunnel0, err := NewTunnel(&TunnelConfig{
 		Type:     ListenQuicListenUdp,
 		Address0: "0.0.0.0:0",
 		Address1: "0.0.0.0:0",
 	})
 	if err != nil {
-		t.Fatal("NewTunnel0 error: ", err)
+		t.Fatal("New quic tunnel 0 error: ", err)
 	}
 	port00, port01 := tunnel0.Ports()
 	defer tunnel0.Close()
@@ -32,7 +31,7 @@ func TestTunnel(t *testing.T) {
 	go tunnel0.Serve()
 
 	// udpConn
-	t.Log("Setup udpConn")
+	t.Log("Setup to quic tunnel udpConn")
 	udpAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
 	if err != nil {
 		t.Fatal("ResolveUDPAddr error: ", err)
@@ -46,18 +45,76 @@ func TestTunnel(t *testing.T) {
 	udpPort64, _ := strconv.ParseInt(sUdpPort, 10, 32)
 
 	// tunnel1
-	t.Log("Setup tunnel 1")
+	t.Log("Setup quic tunnel 1")
 	tunnel1, err := NewTunnel(&TunnelConfig{
 		Type:     DialQuicDialUdp,
 		Address0: "localhost:" + strconv.Itoa(port00),
 		Address1: "localhost:" + strconv.Itoa(int(udpPort64)),
 	})
 	if err != nil {
-		t.Fatal("NewTunnel1 error: ", err)
+		t.Fatal("New quic tunnel 1 error: ", err)
 	}
 	defer tunnel1.Close()
 
 	go tunnel1.Serve()
+
+	testTunnel(t, udpConn, port01)
+
+}
+
+func TestTcpTunnel(t *testing.T) {
+
+	logrus.SetLevel(logrus.DebugLevel)
+
+	// tunnel0
+	t.Log("Setup tcp tunnel 0")
+	tunnel0, err := NewTunnel(&TunnelConfig{
+		Type:     ListenTcpListenUdp,
+		Address0: "0.0.0.0:0",
+		Address1: "0.0.0.0:0",
+	})
+	if err != nil {
+		t.Fatal("New tcp tunnel 0 error: ", err)
+	}
+	port00, port01 := tunnel0.Ports()
+	defer tunnel0.Close()
+
+	go tunnel0.Serve()
+
+	// udpConn
+	t.Log("Setup to tcp tunnel udpConn")
+	udpAddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
+	if err != nil {
+		t.Fatal("ResolveUDPAddr error: ", err)
+	}
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		t.Fatal("ListenUDP error: ", err)
+	}
+	defer udpConn.Close()
+	_, sUdpPort, _ := net.SplitHostPort(udpConn.LocalAddr().String())
+	udpPort64, _ := strconv.ParseInt(sUdpPort, 10, 32)
+
+	// tunnel1
+	t.Log("Setup tcp tunnel 1")
+	tunnel1, err := NewTunnel(&TunnelConfig{
+		Type:     DialTcpDialUdp,
+		Address0: "localhost:" + strconv.Itoa(port00),
+		Address1: "localhost:" + strconv.Itoa(int(udpPort64)),
+	})
+	if err != nil {
+		t.Fatal("New tcp tunnel 1 error: ", err)
+	}
+	defer tunnel1.Close()
+
+	go tunnel1.Serve()
+
+	testTunnel(t, udpConn, port01)
+
+}
+
+// testTunnel goroutine0 <--> udpConn <--> tunnel1 <--> tunnel0 <--> goroutine1
+func testTunnel(t *testing.T, udpConn *net.UDPConn, port01 int) {
 
 	// test data
 	var wg sync.WaitGroup
