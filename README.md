@@ -16,7 +16,7 @@
 4. 可配置的监听端口和服务器地址，方便自搭建
 5. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
 6. 符合习惯的命令行客户端
-7. [AppImage](https://appimage.org/) 格式发布的 gtk3 图形客户端
+7. 易用的 gtk3 图形客户端
 8. 代码乱七八糟
 
 ## TODO
@@ -25,6 +25,7 @@
 2. 多服务器支持
 3. 测试更多作品
 4. 支持 TCP 转发
+5. [AppImage](https://appimage.org/) 格式发布图形客户端
 
 ## 使用方法
 
@@ -113,9 +114,25 @@ $ make
 
 构建得到的二进制在 build 目录下。
 
+### Linux GTK3 GUI
+
+go1.18 需要自行下载或构建。
+
+安装依赖（以 Debian 为例，水平有限，可能不全）
+
+```shell
+$ sudo apt-get install libgtk-3-dev libcairo2-dev glib2.0-dev
+```
+
+构建：
+
+```shell
+$ make gui
+```
+
 ### Windows GTK3 GUI
 
-图形界面客户端在 Windows 上使用 [MSYS2](https://www.msys2.org/) 构建，这里提供一个不全的指南。
+图形界面客户端在 Windows 上使用 [MSYS2](https://www.msys2.org/) 构建，水平有限，只能提供一个不全的指南。
 
 也可参考 gotk3 的 [Wiki](https://github.com/gotk3/gotk3/wiki/Installing-on-Windows#chocolatey) 使用 Chocolatey 搭建环境。
 
@@ -150,7 +167,7 @@ $ go build -ldflags "-H windowsgui" -o ./build/client-gtk3-windows/thlink-client
 复制依赖库：
 
 ```shell
-$ ldd ./build/client-gtk3-windows/thlink-client-gtk.exe | grep -o '/mingw64/bin.*.dll' | xargs --replace=R -t cp R ./build/client-gtk3-windows/
+$ ldd ./build/client-gtk3-windows/thlink-client-gtk.exe | grep -o '/mingw64/bin/[^ ]*' | xargs --replace=R -t cp R ./build/client-gtk3-windows/
 ```
 
 GTK icons：

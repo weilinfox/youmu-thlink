@@ -1,12 +1,12 @@
 
 all:
 	export GOPATH=${HOME}/go
-	go build -o ./build/broker ./broker/
-	go build -o ./build/client ./client/
+	go build -o ./build/thlink-broker ./broker/
+	go build -o ./build/thlink-client ./client/
 
 gui:
 	export GOPATH=${HOME}/go
-	go build -o ./build/client-gtk ./client-gtk3/
+	go build -o ./build/thlink-client-gtk ./client-gtk3/
 
 static:
 	export GOPATH=${HOME}/go
