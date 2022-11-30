@@ -25,7 +25,7 @@ func main() {
 		logrus.SetLevel(logrus.InfoLevel)
 	}
 
-	c, err := client.NewClient(*localPort, *server, *tunnelType)
+	c, err := client.New(*localPort, *server, *tunnelType)
 	if err != nil {
 		logger.WithError(err).Fatal("Start client error")
 	}

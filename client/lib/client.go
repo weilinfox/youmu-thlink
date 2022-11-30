@@ -28,8 +28,8 @@ type Client struct {
 	tunnelType string
 }
 
-// NewClient set up new client
-func NewClient(localPort int, serverHost string, tunnelType string) (*Client, error) {
+// New set up new client
+func New(localPort int, serverHost string, tunnelType string) (*Client, error) {
 
 	// check arguments
 	if localPort <= 0 || localPort > 65535 {
@@ -56,41 +56,54 @@ func NewClient(localPort int, serverHost string, tunnelType string) (*Client, er
 	}, nil
 }
 
+// NewWithDefault set up default client
+func NewWithDefault() *Client {
+	return &Client{
+		localPort:  DefaultLocalPort,
+		serverHost: DefaultServerHost,
+		tunnelType: DefaultTunnelType,
+	}
+}
+
 // Ping get client to broker delay
 func (c *Client) Ping() time.Duration {
 
 	buf := make([]byte, utils.CmdBufSize)
-	serverAddr, err := net.ResolveTCPAddr("tcp", c.serverHost)
-	if err != nil {
-		return time.Second * 999
-	}
 
-	// calculate delay ms
-	timeSend := time.Now()
+	// dial port
+	conn, err := net.DialTimeout("tcp", c.serverHost, time.Millisecond*500)
+	if err != nil {
+		logger.WithError(err).Error("Cannot connect to broker")
+		return time.Second
+	}
 
 	// send ping
-	conn, err := net.DialTCP("tcp", nil, serverAddr)
-	if err != nil {
-		logger.WithError(err).Fatal("Cannot connect to broker")
-	}
+	timeSend := time.Now()
+	_ = conn.SetWriteDeadline(time.Now().Add(time.Millisecond * 500))
 	_, err = conn.Write(utils.NewDataFrame(utils.PING, nil))
+	_ = conn.SetWriteDeadline(time.Time{})
 	if err != nil {
-		conn.Close()
-		logger.Fatal("Send ping failed")
+		_ = conn.Close()
+		logger.WithError(err).Error("Send ping failed")
+		return time.Second
 	}
+	_ = conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
 	n, err := conn.Read(buf)
+	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {
-		conn.Close()
-		logger.Fatal("Get ping response failed")
+		_ = conn.Close()
+		logger.WithError(err).Error("Get ping response failed")
+		return time.Second
 	}
-	conn.Close()
+	_ = conn.Close()
 	timeResp := time.Now()
 
 	// parse response
 	dataStream := utils.NewDataStream()
 	dataStream.Append(buf[:n])
 	if !dataStream.Parse() || dataStream.Type() != utils.PING {
-		logger.Fatal("Invalid PING response from server")
+		logger.Error("Invalid PING response from server")
+		return time.Second
 	}
 
 	delay := timeResp.Sub(timeSend)
@@ -182,4 +195,19 @@ func (c *Client) Close() {
 // TunnelDelay ping delay between client and broker
 func (c *Client) TunnelDelay() time.Duration {
 	return c.tunnel.PingDelay()
+}
+
+// LocalPort get client config local port
+func (c *Client) LocalPort() int {
+	return c.localPort
+}
+
+// TunnelType get client config tunnel type tcp/quic
+func (c *Client) TunnelType() string {
+	return c.tunnelType
+}
+
+// ServerHost get client config server host
+func (c *Client) ServerHost() string {
+	return c.serverHost
 }
