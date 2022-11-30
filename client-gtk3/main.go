@@ -2,18 +2,22 @@ package main
 
 import (
 	"fmt"
-	client "github.com/weilinfox/youmu-thlink/client/lib"
-	"github.com/weilinfox/youmu-thlink/utils"
 	"os"
 	"strconv"
 	"time"
 
+	client "github.com/weilinfox/youmu-thlink/client/lib"
+	"github.com/weilinfox/youmu-thlink/utils"
+
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/sirupsen/logrus"
 )
 
 var logger = logrus.WithField("client-gui", "internal")
+
+const appName = "白玉楼製作所 ThLink"
 
 type Status struct {
 	localPort  int
@@ -25,6 +29,7 @@ type Status struct {
 	client *client.Client
 }
 
+// clientStatus all of this client-gui
 var clientStatus = Status{
 	localPort:        client.DefaultLocalPort,
 	serverHost:       client.DefaultServerHost,
@@ -45,8 +50,6 @@ func main() {
 
 	app.Connect("activate", onAppActivate)
 
-	// go client.Main(10800, "thlink.inuyasha.love", 4646, 't')
-
 	app.Run(os.Args)
 
 }
@@ -65,13 +68,12 @@ func onAppActivate(app *gtk.Application) {
 	// simple actions
 	aQuit := glib.SimpleActionNew("quit", nil)
 	aQuit.Connect("activate", func() {
+		onAppDestroy()
 		app.Quit()
 	})
 	app.AddAction(aQuit)
 	aAbout := glib.SimpleActionNew("about", nil)
-	aAbout.Connect("activate", func() {
-
-	})
+	aAbout.Connect("activate", showAboutDialog)
 	app.AddAction(aAbout)
 	aInfo := glib.SimpleActionNew("info", nil)
 	aInfo.Connect("activate", func() {
@@ -91,13 +93,14 @@ func onAppActivate(app *gtk.Application) {
 		logger.WithError(err).Fatal("Could not create header bar.")
 	}
 	menu := glib.MenuNew()
-	menu.Append("Info", "app.info")
-	menu.Append("About", "app.about")
+	menu.Append("Reset config", "app.reset")
+	menu.Append("Tunnel info", "app.info")
+	menu.Append("About thlink", "app.about")
 	menu.Append("Quit", "app.quit")
 	menuBtn.SetMenuModel(&menu.MenuModel)
 	header.PackStart(menuBtn)
 	header.SetShowCloseButton(true)
-	header.SetTitle("白玉楼製作所 ThLink")
+	header.SetTitle(appName)
 	header.SetSubtitle("v" + utils.Version)
 
 	// grid
@@ -150,19 +153,25 @@ func onAppActivate(app *gtk.Application) {
 		logger.WithError(err).Fatal("Could not create ping button.")
 	}
 	pingBtn.SetHExpand(true)
+
+	setPingLabel := func(delay time.Duration) {
+		logger.Debugf("Display new delay %.2f ms", float64(delay.Nanoseconds())/1000000)
+		pingLabel.SetText(fmt.Sprintf("%.2f ms", float64(delay.Nanoseconds())/1000000))
+	}
 	pingBtn.Connect("clicked", func() {
-		err := onConfigUpdate()
-		if err != nil {
-			logger.WithError(err).Error("Update ping failed")
-			dialog := gtk.MessageDialogNew(nil, gtk.DIALOG_DESTROY_WITH_PARENT|gtk.DIALOG_MODAL, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Update ping failed: %e", err)
-			dialog.Show()
-			dialog.Destroy()
-			return
+
+		if !clientStatus.client.Serving() {
+
+			err := onConfigUpdate()
+			if err != nil {
+				logger.WithError(err).Error("Update ping failed")
+				showErrorDialog(appWindow, "Update ping error", err)
+				return
+			}
+
 		}
 
-		delay := onUpdatePing()
-		logger.Debugf("Get new delay %.2f ms", float64(delay.Nanoseconds())/1000000)
-		pingLabel.SetText(fmt.Sprintf("%.2f ms", float64(delay.Nanoseconds())/1000000))
+		setPingLabel(onUpdatePing())
 	})
 	pingBox.Add(pingLabel)
 	pingBox.Add(pingBtn)
@@ -223,11 +232,11 @@ func onAppActivate(app *gtk.Application) {
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create protocol radio box.")
 	}
-	protoRadio, err := gtk.RadioButtonNewWithLabelFromWidget(nil, "TCP")
+	protoRadioTcp, err := gtk.RadioButtonNewWithLabelFromWidget(nil, "TCP")
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create protocol radio button TCP.")
 	}
-	protoRadio.Connect("toggled", func(r *gtk.RadioButton) {
+	protoRadioTcp.Connect("toggled", func(r *gtk.RadioButton) {
 		if r.GetActive() {
 			clientStatus.tunnelType = "tcp"
 		} else {
@@ -236,12 +245,12 @@ func onAppActivate(app *gtk.Application) {
 		clientStatus.userConfigChange = true
 		logger.Debug("Protocol change to ", clientStatus.tunnelType)
 	})
-	protoRadioBox.Add(protoRadio)
-	protoRadio, err = gtk.RadioButtonNewWithLabelFromWidget(protoRadio, "QUIC")
+	protoRadioBox.Add(protoRadioTcp)
+	protoRadioQuic, err := gtk.RadioButtonNewWithLabelFromWidget(protoRadioTcp, "QUIC")
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create protocol radio button QUIC.")
 	}
-	protoRadioBox.Add(protoRadio)
+	protoRadioBox.Add(protoRadioQuic)
 	protoRadioBox.SetHAlign(gtk.ALIGN_CENTER)
 
 	// peer address label
@@ -270,14 +279,36 @@ func onAppActivate(app *gtk.Application) {
 	}
 	connBtn.SetHExpand(true)
 	connBtn.Connect("clicked", func() {
+
+		if !clientStatus.userConfigChange && clientStatus.client.Serving() {
+			logger.Debug("Already serving")
+			return
+		}
+
 		err := onConfigUpdate()
 		if err != nil {
 			logger.WithError(err).Error("Connect failed")
-			dialog := gtk.MessageDialogNew(nil, gtk.DIALOG_DESTROY_WITH_PARENT|gtk.DIALOG_MODAL, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Connect failed: %e", err)
-			dialog.Show()
-			dialog.Destroy()
+			showErrorDialog(appWindow, "Connect failed", err)
 			return
 		}
+
+		err = clientStatus.client.Connect()
+		if err != nil {
+			logger.WithError(err).Error("Connect failed")
+			showErrorDialog(appWindow, "Connect failed", err)
+			return
+		}
+
+		addrLabel.SetText(clientStatus.client.PeerHost())
+
+		go func() {
+			err := clientStatus.client.Serve()
+			if err != nil {
+				logger.WithError(err).Error("Connect failed")
+				showErrorDialog(appWindow, "Connect failed", err)
+				return
+			}
+		}()
 
 		logger.Debug("Connect")
 	})
@@ -287,14 +318,10 @@ func onAppActivate(app *gtk.Application) {
 	}
 	refreshBtn.SetHExpand(true)
 	refreshBtn.Connect("clicked", func() {
-		err := onConfigUpdate()
-		if err != nil {
-			logger.WithError(err).Error("Refresh failed")
-			dialog := gtk.MessageDialogNew(nil, gtk.DIALOG_DESTROY_WITH_PARENT|gtk.DIALOG_MODAL, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Refresh failed: %e", err)
-			dialog.Show()
-			dialog.Destroy()
-			return
-		}
+
+		clientStatus.client.Close()
+
+		connBtn.Emit("clicked")
 
 		logger.Debug("Refresh")
 	})
@@ -304,7 +331,30 @@ func onAppActivate(app *gtk.Application) {
 	}
 	copyBtn.SetHExpand(true)
 	copyBtn.Connect("clicked", func() {
-		logger.Debug("Copy")
+
+		if clientStatus.client.Serving() {
+
+			clipBoard, err := gtk.ClipboardGet(gdk.SELECTION_CLIPBOARD)
+			if err != nil {
+				showErrorDialog(appWindow, "Get clipboard error", err)
+				return
+			}
+			addr, err := addrLabel.GetText()
+			if err != nil {
+				showErrorDialog(appWindow, "Get address text error", err)
+				return
+			}
+
+			clipBoard.SetText(addr)
+
+			logger.Debug("Copy")
+
+		} else {
+
+			logger.Debug("Nothing to copy")
+
+		}
+
 	})
 	ctlBtnBox.Add(connBtn)
 	ctlBtnBox.Add(refreshBtn)
@@ -312,6 +362,15 @@ func onAppActivate(app *gtk.Application) {
 	ctlBtnBox.SetHAlign(gtk.ALIGN_FILL)
 	ctlBtnBox.SetHExpand(true)
 	ctlBtnBox.SetMarginTop(10)
+
+	// reset action
+	aReset := glib.SimpleActionNew("reset", nil)
+	aReset.Connect("activate", func() {
+		serverEntry.SetText(client.DefaultServerHost)
+		localPortEntry.SetText(strconv.Itoa(client.DefaultLocalPort))
+		protoRadioTcp.SetActive(true)
+	})
+	app.AddAction(aReset)
 
 	// add items to grid
 	mainGrid.Add(serverLabel)
@@ -331,12 +390,35 @@ func onAppActivate(app *gtk.Application) {
 	appWindow.SetShowMenubar(true)
 	appWindow.ShowAll()
 
+	// auto update ping
+	go func() {
+		for {
+			time.Sleep(time.Second * 2)
+			if clientStatus.client.Serving() {
+				setPingLabel(clientStatus.client.TunnelDelay())
+			} else {
+				setPingLabel(clientStatus.client.Ping())
+			}
+		}
+	}()
+
+	// refresh delay
+	_, _ = pingBtn.Emit("clicked")
+
 }
 
-func onAppDestroy(appWin *gtk.ApplicationWindow) {
+// onAppDestroy close client
+func onAppDestroy() {
+	clientStatus.client.Close()
 }
 
+// onConfigUpdate update config and setup new client
 func onConfigUpdate() error {
+
+	if clientStatus.client.Serving() {
+		clientStatus.client.Close()
+	}
+
 	if clientStatus.userConfigChange {
 		newClient, err := client.New(clientStatus.localPort, clientStatus.serverHost, clientStatus.tunnelType)
 		if err != nil {
@@ -350,6 +432,40 @@ func onConfigUpdate() error {
 	return nil
 }
 
+// onUpdatePing send ping via client
 func onUpdatePing() time.Duration {
 	return clientStatus.client.Ping()
+}
+
+// showErrorDialog show error dialog
+func showErrorDialog(appWin *gtk.ApplicationWindow, msg string, err error) {
+	dialog := gtk.MessageDialogNew(appWin, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "%s", err)
+	dialog.SetTitle(msg)
+	dialog.Show()
+	dialog.Connect("response", func() {
+		dialog.Destroy()
+	})
+}
+
+// showAboutDialog show about dialog
+func showAboutDialog() {
+
+	about, err := gtk.AboutDialogNew()
+	if err != nil {
+		logger.WithError(err).Error("Show about dialog error")
+	}
+	about.SetProgramName(appName)
+	about.SetVersion("Version " + utils.Version)
+	about.SetAuthors([]string{"桜風の狐"})
+	about.SetCopyright("https://github.com/gotk3/gotk3 ISC License\n" +
+		"https://github.com/lucas-clemente/quic-go MIT License\n" +
+		"https://github.com/sirupsen/logrus MIT License\n" +
+		"https://github.com/weilinfox/youmu-thlink AGPL-3.0 License\n" +
+		"\n2022 weilinfox")
+	about.SetTitle("About ThLink")
+	about.Show()
+	about.Connect("response", func() {
+		about.Destroy()
+	})
+
 }

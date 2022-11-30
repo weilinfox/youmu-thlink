@@ -26,6 +26,10 @@ type Client struct {
 	localPort  int
 	serverHost string
 	tunnelType string
+
+	serving bool
+
+	peerHost string
 }
 
 // New set up new client
@@ -112,8 +116,8 @@ func (c *Client) Ping() time.Duration {
 
 }
 
-// Serve ask new tunnel and serve
-func (c *Client) Serve() error {
+// Connect ask new tunnel and connect
+func (c *Client) Connect() error {
 
 	logger.Info("Will connect to local port ", c.localPort)
 	logger.Info("Will connect to broker address ", c.serverHost)
@@ -123,18 +127,11 @@ func (c *Client) Serve() error {
 		return err
 	}
 
-	// connect to broker
-	serverAddr, err := net.ResolveTCPAddr("tcp", c.serverHost)
-	if err != nil {
-		return err
-	}
-	logger.Info("Connected to broker")
-
 	buf := make([]byte, utils.CmdBufSize)
 
 	// new tunnel command
 	logger.Info("Ask for new udp tunnel")
-	conn, err := net.DialTCP("tcp", nil, serverAddr)
+	conn, err := net.DialTimeout("tcp", c.serverHost, time.Millisecond*500)
 	if err != nil {
 		return err
 	}
@@ -180,8 +177,19 @@ func (c *Client) Serve() error {
 		return err
 	}
 
-	logger.Infof("Tunnel established for remote "+serverAddr.IP.String()+":%d", port2)
+	hostIP, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	c.peerHost = hostIP + ":" + strconv.Itoa(port2)
 
+	logger.Infof("Tunnel established for remote " + c.peerHost)
+
+	return nil
+}
+
+func (c *Client) Serve() error {
+	if c.serving {
+		return errors.New("already serving")
+	}
+	c.serving = true
 	return c.tunnel.Serve()
 }
 
@@ -190,6 +198,7 @@ func (c *Client) Close() {
 	if c.tunnel != nil {
 		c.tunnel.Close()
 	}
+	c.serving = false
 }
 
 // TunnelDelay ping delay between client and broker
@@ -210,4 +219,13 @@ func (c *Client) TunnelType() string {
 // ServerHost get client config server host
 func (c *Client) ServerHost() string {
 	return c.serverHost
+}
+
+// PeerHost get client peer host
+func (c *Client) PeerHost() string {
+	return c.peerHost
+}
+
+func (c *Client) Serving() bool {
+	return c.serving
 }

@@ -30,6 +30,10 @@ func main() {
 		logger.WithError(err).Fatal("Start client error")
 	}
 	defer c.Close()
+	err = c.Connect()
+	if err != nil {
+		logger.WithError(err).Fatal("Client connect error")
+	}
 	err = c.Serve()
 	if err != nil {
 		logger.WithError(err).Fatal("Serve client error")

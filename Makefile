@@ -3,7 +3,10 @@ all:
 	export GOPATH=${HOME}/go
 	go build -o ./build/broker ./broker/
 	go build -o ./build/client ./client/
-	go build -o ./build/client-gui ./client-gui/
+
+gui:
+	export GOPATH=${HOME}/go
+	go build -o ./build/client-gtk ./client-gtk3/
 
 static:
 	export GOPATH=${HOME}/go
