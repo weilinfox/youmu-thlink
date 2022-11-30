@@ -16,7 +16,7 @@
 4. 可配置的监听端口和服务器地址，方便自搭建
 5. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
 6. 符合习惯的命令行客户端
-7. 方便使用的 gtk3 图形客户端
+7. [AppImage](https://appimage.org/) 格式发布的 gtk3 图形客户端
 8. 代码乱七八糟
 
 ## TODO
@@ -109,8 +109,59 @@ $ make
 + ``static`` 构建静态链接的二进制
 + ``loong64`` 构建 loong64 架构的二进制
 + ``windows`` 构建 windows amd64 可执行文件
++ ``gui`` Linux 下构建本机动态链接的图形界面客户端二进制
 
 构建得到的二进制在 build 目录下。
+
+### Windows GTK3 GUI
+
+图形界面客户端在 Windows 上使用 [MSYS2](https://www.msys2.org/) 构建，这里提供一个不全的指南。
+
+也可参考 gotk3 的 [Wiki](https://github.com/gotk3/gotk3/wiki/Installing-on-Windows#chocolatey) 使用 Chocolatey 搭建环境。
+
+注意 go 应该使用 Windows 版本而不是 MSYS2 软件源中提供的版本 ，否则可能会有构建失败的情况（待考证，我有出现 ``ld`` 找不到 ``-lmingwex`` 和 ``-lmingw32`` 的报错）。
+
+更新到最新并安装依赖：
+
+```shell
+$ pacman -Syuu
+$ pacman -S mingw-w64-x86_64-gtk3 mingw-w64-x86_64-toolchain base-devel glib2-devel
+```
+
+配置环境变量（根据实际情况修改），其中 ``/c/msys64/mingw64/bin`` 代表的是 Mingw64 gcc 所在目录， ``/c/Go/bin`` 则代表的是 Windows 的 go 所在目录：
+
+```shell
+$ echo 'export PATH=/c/msys64/mingw64/bin:/c/Go/bin:$PATH' >> ~/.bashrc
+$ source ~/.bashrc
+```
+
+修复 gdk-3.0.pc 中的一个 bug （坑了我好久，其实 gotk3 的 Wiki 有写到）：
+
+```shell
+$ sed -i -e 's/-Wl,-luuid/-luuid/g' /mingw64/lib/pkgconfig/gdk-3.0.pc
+```
+
+构建， ``-H windowsgui`` 使其运行时没有黑色终端：
+
+```shell
+$ go build -ldflags "-H windowsgui" -o ./build/client-gtk3-windows/thlink-client-gtk.exe ./client-gtk3
+```
+
+复制依赖库：
+
+```shell
+$ ldd ./build/client-gtk3-windows/thlink-client-gtk.exe | grep -o '/mingw64/bin.*.dll' | xargs --replace=R -t cp R ./build/client-gtk3-windows/
+```
+
+GTK icons：
+
+```shell
+$ mkdir -p ./build/client-gtk3-windows/lib/gdk-pixbuf-2.0/2.10.0/loaders
+$ cp /mingw64/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-png.dll ./build/client-gtk3-windows/lib/gdk-pixbuf-2.0/2.10.0/loaders/
+$ cp /mingw64/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache ./build/client-gtk3-windows/lib/gdk-pixbuf-2.0/2.10.0/
+```
+
+打包整个 ``./build/client-gtk3-windows`` 目录即可。
 
 ## 使用的端口
 
