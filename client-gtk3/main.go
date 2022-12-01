@@ -16,6 +16,7 @@ import (
 )
 
 var logger = logrus.WithField("client-gui", "internal")
+var icon *gdk.Pixbuf
 
 const appName = "白玉楼製作所 ThLink"
 
@@ -46,6 +47,11 @@ func main() {
 	app, err := gtk.ApplicationNew(appID, glib.APPLICATION_FLAGS_NONE)
 	if err != nil {
 		logrus.WithError(err).Fatal("Could not create app")
+	}
+
+	icon, err = getIcon()
+	if err != nil {
+		logger.WithError(err).Error("Get icon error")
 	}
 
 	app.Connect("activate", onAppActivate)
@@ -384,6 +390,9 @@ func onAppActivate(app *gtk.Application) {
 	mainGrid.Add(ctlBtnBox)
 
 	appWindow.SetTitlebar(header)
+	if icon != nil {
+		appWindow.SetIcon(icon)
+	}
 	appWindow.Add(mainGrid)
 	appWindow.SetResizable(false)
 	appWindow.SetDefaultSize(240, 320)
@@ -463,6 +472,11 @@ func showAboutDialog() {
 		"https://github.com/weilinfox/youmu-thlink AGPL-3.0 License\n" +
 		"\n2022 weilinfox")
 	about.SetTitle("About ThLink")
+	if icon != nil {
+		about.SetIcon(icon)
+		about.SetLogo(icon)
+	}
+
 	about.Show()
 	about.Connect("response", func() {
 		about.Destroy()

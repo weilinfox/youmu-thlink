@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=ThLink Client
+Name=ThLink Client Gtk
 Comment=Touhou project game netplay tool
 Comment[zh_CN]=通用的东方联机器
 Exec=thlink-client-gtk

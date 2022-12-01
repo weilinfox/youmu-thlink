@@ -1,5 +1,5 @@
 /* XPM */
-static char * thtagger_xpm[] = {
+char * thlink_client_gtk_xpm[] = {
 "32 32 3 1",
 " 	c None",
 ".	c #FFFFFF",
