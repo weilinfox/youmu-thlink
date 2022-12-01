@@ -15,8 +15,8 @@
 3. 支持使用 UDP 进行联机的东方作品
 4. 可配置的监听端口和服务器地址，方便自搭建
 5. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
-6. 符合习惯的命令行客户端
-7. 易用的 gtk3 图形客户端
+6. 符合习惯的命令行客户端和易用的 gtk3 图形客户端
+7. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
 8. 代码乱七八糟
 
 ## TODO
@@ -25,7 +25,6 @@
 2. 多服务器支持
 3. 测试更多作品
 4. 支持 TCP 转发
-5. [AppImage](https://appimage.org/) 格式发布图形客户端
 
 ## 使用方法
 
@@ -128,6 +127,21 @@ $ sudo apt-get install libgtk-3-dev libcairo2-dev glib2.0-dev
 
 ```shell
 $ make gui
+```
+
+制作 AppImage （参见 [linuxdeploy-plugin-gtk](https://github.com/linuxdeploy/linuxdeploy-plugin-gtk) ）：
+
+```shell
+$ cd ./build
+
+$ wget -c "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
+$ wget -c "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+$ chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh
+
+$ mkdir -p thlink-client-gtk.AppDir/usr/bin/
+$ install -Dm775 ./thlink-client-gtk thlink-client-gtk.AppDir/usr/bin/
+$ ./linuxdeploy-x86_64.AppImage --appdir thlink-client-gtk.AppDir/ --plugin gtk --output appimage --icon-file thlink-client-gtk.png --desktop-file thlink-client-gtk.desktop
+$ mv ThLink_Client_Gtk-x86_64.AppImage thLink-client-gtk-amd64-linux.AppImage
 ```
 
 ### Windows GTK3 GUI
