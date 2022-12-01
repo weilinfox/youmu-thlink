@@ -141,7 +141,7 @@ $ chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh
 $ mkdir -p thlink-client-gtk.AppDir/usr/bin/
 $ install -Dm775 ./thlink-client-gtk thlink-client-gtk.AppDir/usr/bin/
 $ ./linuxdeploy-x86_64.AppImage --appdir thlink-client-gtk.AppDir/ --plugin gtk --output appimage --icon-file thlink-client-gtk.png --desktop-file thlink-client-gtk.desktop
-$ mv ThLink_Client_Gtk-x86_64.AppImage thLink-client-gtk-amd64-linux.AppImage
+$ mv ThLink_Client_Gtk-x86_64.AppImage thlink-client-gtk-amd64-linux.AppImage
 ```
 
 ### Windows GTK3 GUI
@@ -172,9 +172,10 @@ $ source ~/.bashrc
 $ sed -i -e 's/-Wl,-luuid/-luuid/g' /mingw64/lib/pkgconfig/gdk-3.0.pc
 ```
 
-构建， ``-H windowsgui`` 使其运行时没有黑色终端：
+构建图标和本体， ``-H windowsgui`` 使其运行时没有黑色终端：
 
 ```shell
+$ windres -o ./client-gtk3/icon.syso ./client-gtk3/icon.rc
 $ go build -ldflags "-H windowsgui" -o ./build/client-gtk3-windows/thlink-client-gtk.exe ./client-gtk3
 ```
 
@@ -189,6 +190,7 @@ GTK icons：
 ```shell
 $ mkdir -p ./build/client-gtk3-windows/lib/gdk-pixbuf-2.0/2.10.0/loaders
 $ cp /mingw64/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-png.dll ./build/client-gtk3-windows/lib/gdk-pixbuf-2.0/2.10.0/loaders/
+$ cp /mingw64/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-xpm.dll ./build/client-gtk3-windows/lib/gdk-pixbuf-2.0/2.10.0/loaders/
 $ cp /mingw64/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache ./build/client-gtk3-windows/lib/gdk-pixbuf-2.0/2.10.0/
 ```
 
