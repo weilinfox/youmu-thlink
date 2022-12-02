@@ -22,7 +22,7 @@ const (
 
 func TestRun(t *testing.T) {
 	t.Log("Run broker")
-	go Main("127.0.0.1:4646")
+	go Main("127.0.0.1:4646", "")
 	//time.Sleep(time.Second)
 }
 
@@ -148,6 +148,8 @@ func TestUDP(t *testing.T) {
 		t.Fatal("UDP connection failed")
 	}
 	defer uConn.Close()
+
+	testBrokerInfo(t)
 
 	var writeQuicCnt, readQuicCnt, writeUdpCnt, readUdpCnt int
 	var wg sync.WaitGroup
@@ -287,4 +289,45 @@ func TestUDP(t *testing.T) {
 		t.Log("UDP write read bytes matched ", writeUdpCnt)
 	}
 
+}
+
+func testBrokerInfo(t *testing.T) {
+
+	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", serverAddress)
+	conn, err := net.DialTCP("tcp4", nil, brokerTcpAddr)
+	if err != nil {
+		t.Fatal("Fail to connect to server: ", err.Error())
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(utils.NewDataFrame(utils.BROKER_INFO, nil))
+	if err != nil {
+		t.Fatal("Fail to send broker info command: ", err.Error())
+	}
+
+	buf := make([]byte, utils.TransBufSize)
+	n, err := conn.Read(buf)
+	if err != nil {
+		t.Fatal("Fail to read broker response: ", err.Error())
+	}
+
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() {
+		t.Fatal("Fail to parse broker response")
+	}
+
+	if dataStream.Len() != 8 {
+		t.Fatal("Broker info response length is not 8: ", dataStream.Len())
+	}
+	count := int64(dataStream.Data()[0])<<56 + int64(dataStream.Data()[1])<<48 + int64(dataStream.Data()[2])<<40 + int64(dataStream.Data()[3])<<32 +
+		int64(dataStream.Data()[4])<<24 + int64(dataStream.Data()[5])<<16 + int64(dataStream.Data()[6])<<8 + int64(dataStream.Data()[7])
+	if count != 1 {
+		t.Error("Broker info data is not 1: ", count)
+	}
+
+}
+
+func TestNetInfo(t *testing.T) {
+	// TODO:
 }

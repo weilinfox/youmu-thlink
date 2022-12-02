@@ -10,10 +10,11 @@ import (
 func main() {
 
 	listenHost := flag.String("s", "0.0.0.0:4646", "listen hostname")
+	upperHost := flag.String("u", "", "upper broker hostname")
 
 	flag.Parse()
 
-	broker.Main(*listenHost)
+	broker.Main(*listenHost, *upperHost)
 
 	fmt.Println("Enter to quit")
 	_, _ = fmt.Scanln()
