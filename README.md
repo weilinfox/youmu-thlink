@@ -6,7 +6,9 @@
 
 服务端和客户端使用可选的 QUIC 或 TCP 传输，具有较高的网络适应能力；支持 LZW 压缩，在一定程度上节约带宽。
 
-感谢 飞翔君 的一起测试。
+感谢 飞翔君 一起测试；
+
+感谢 [JetBrains](https://www.jetbrains.com/) 的 GoLand 学生许可证。
 
 ## 特性
 
@@ -26,9 +28,9 @@
 3. 测试更多作品
 4. 支持 TCP 转发
 
-## 使用方法
+## 下载
 
-按 client 界面提示操作即可。
+从 [release](https://github.com/weilinfox/youmu-thlink/releases) 页面下载。
 
 ### TH09
 
@@ -112,6 +114,28 @@ $ make
 + ``gui`` Linux 下构建本机动态链接的图形界面客户端二进制
 
 构建得到的二进制在 build 目录下。
+
+### 离线构建
+
+下载全部依赖的包：
+
+```shell
+$ git mod vendor
+```
+
+将生成的 ``./vendor`` 目录打包拷贝到别处，再解包到项目根目录运行构建：
+
+```shell
+$ go mod=vendor build -o build/thlink-client-gtk ./client-gtk3
+```
+
+### 部署
+
+broker 为服务端， client 为客户端。
+
+broker 在服务器运行即可， ``broker -h`` 查看选项； client 在本地运行， ``client -h`` 查看选项。
+
+client-gtk 没有提供特殊的命令行界面。
 
 ### Linux GTK3 GUI
 
