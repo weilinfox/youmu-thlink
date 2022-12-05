@@ -432,6 +432,12 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 						if err != nil || wcnt != dataStream.Len() {
 							loggerTunnel.WithError(err).WithField("count", dataStream.Len()).WithField("sent", wcnt).
 								Warn("Send data to connected udp error or send count not match")
+
+							// reconnect
+							localAddr := udpConn.LocalAddr()
+							udpLocalAddr, _ := net.ResolveUDPAddr("udp", localAddr.String())
+							_ = udpConn.Close()
+							udpConn, _ = net.DialUDP("udp", nil, udpLocalAddr)
 						}
 					}
 
