@@ -32,6 +32,18 @@
 
 从 [release](https://github.com/weilinfox/youmu-thlink/releases) 页面下载。
 
+### Archlinux
+
+从 AUR 安装：
+
+```shell
+$ yay -S thlink-client-gtk
+$ yay -S thlink-client
+$ yay -S thlink-broker
+```
+
+## 客户端使用指导
+
 ### TH09
 
 作品名称：
