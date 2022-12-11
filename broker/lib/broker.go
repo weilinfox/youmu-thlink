@@ -17,15 +17,15 @@ var logger = logrus.WithField("broker", "internal")
 
 var peers = make(map[int]int)
 
-var upperAddress string                     // upper
-var selfPort int                            // self port
-var newBrokers = make(map[string]time.Time) // 1 jump
-var netBrokers = make(map[string]time.Time) // >1 jump
 const BrokersCntMax = 40
 
 func Main(listenAddr string, upperAddr string) {
 
-	upperAddress = upperAddr
+	var upperAddress string                     // upper
+	var selfPort int                            // self port
+	var newBrokers = make(map[string]time.Time) // 1 jump
+	var netBrokers = make(map[string]time.Time) // >1 jump
+
 	_, slistenPort, err := net.SplitHostPort(listenAddr)
 	if err != nil {
 		logger.WithError(err).Fatal("Adddress split error")
@@ -63,6 +63,10 @@ func Main(listenAddr string, upperAddr string) {
 				if err != nil {
 					logger.WithError(err).Fatal("Send UPDATE_NET_INFO to upper broker error")
 				}
+
+				upperAddress = tcpConn.RemoteAddr().String()
+				logger.Info("Upper broker connected ", upperAddress)
+				_ = tcpConn.Close()
 			}
 
 			// find 30s timeout broker
@@ -187,25 +191,28 @@ func Main(listenAddr string, upperAddr string) {
 				var data []byte
 				var count int
 				for k, _ := range newBrokers {
+					if count > BrokersCntMax {
+						break
+					}
+
 					data = append(data, byte(len(k)))
 					data = append(data, []byte(k)...)
 
 					count++
-					if count > BrokersCntMax {
-						break
-					}
-				}
-				if count <= BrokersCntMax {
-
 				}
 				for k, _ := range netBrokers {
+					if count > BrokersCntMax {
+						break
+					}
+
 					data = append(data, byte(len(k)))
 					data = append(data, []byte(k)...)
 
 					count++
-					if count > BrokersCntMax {
-						break
-					}
+				}
+				if count <= BrokersCntMax && upperAddress != "" {
+					data = append(data, byte(len(upperAddress)))
+					data = append(data, []byte(upperAddress)...)
 				}
 
 				// all known broker address
@@ -225,6 +232,7 @@ func Main(listenAddr string, upperAddr string) {
 
 					if _, ok := newBrokers[peerAddress]; !ok {
 						newBrokers[peerAddress] = time.Now()
+						logger.Info("New broker connected: ", peerAddress)
 					} else {
 
 						// send empty response
@@ -248,11 +256,13 @@ func Main(listenAddr string, upperAddr string) {
 
 							}
 							// send to upper broker
-							bkrConn, err := net.DialTimeout("tcp", upperAddress, time.Second)
-							if err != nil {
-								logger.WithError(err).Warn("Send new broker to upper broker error")
-							} else {
-								_, _ = bkrConn.Write(utils.NewDataFrame(utils.UPDATE_NET_INFO, newData))
+							if upperAddress != "" {
+								bkrConn, err := net.DialTimeout("tcp", upperAddress, time.Second)
+								if err != nil {
+									logger.WithError(err).Warn("Send new broker to upper broker error")
+								} else {
+									_, _ = bkrConn.Write(utils.NewDataFrame(utils.UPDATE_NET_INFO, newData))
+								}
 							}
 						}
 
@@ -265,8 +275,10 @@ func Main(listenAddr string, upperAddr string) {
 							u := cmdData[i] & 0x80
 							l := int(cmdData[i] | 0x7f)
 							if u > 0 {
+								logger.Info("Remote broker:", string(routeData[i+1:i+1+l]))
 								delete(netBrokers, string(routeData[i+1:i+1+l]))
 							} else {
+								logger.Info("New broker:", string(routeData[i+1:i+1+l]))
 								netBrokers[string(routeData[i+1:i+1+l])] = time.Now()
 							}
 							i += l

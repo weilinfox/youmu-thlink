@@ -18,11 +18,13 @@ import (
 const (
 	serverHost    = "localhost"
 	serverAddress = serverHost + ":4646"
+	serverAddress2 = serverHost+":4647"
 )
 
 func TestRun(t *testing.T) {
 	t.Log("Run broker")
 	go Main("127.0.0.1:4646", "")
+	go Main("127.0.0.1:4647", serverAddress)
 	//time.Sleep(time.Second)
 }
 
@@ -329,5 +331,43 @@ func testBrokerInfo(t *testing.T) {
 }
 
 func TestNetInfo(t *testing.T) {
-	// TODO:
+	testNetInfo(serverAddress, "127.0.0.1:4647", t)
+	testNetInfo(serverAddress2, "127.0.0.1:4646", t)
+}
+
+func testNetInfo(addr string, ans string, t *testing.T) {
+
+	brokerTcpAddr, _ := net.ResolveTCPAddr("tcp4", addr)
+	conn, err := net.DialTCP("tcp4", nil, brokerTcpAddr)
+	if err != nil {
+		t.Fatal("Fail to connect to server: ", err.Error())
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(utils.NewDataFrame(utils.NET_INFO, nil))
+	if err != nil {
+		t.Fatal("Fail to send net info command: ", err.Error())
+	}
+
+	buf := make([]byte, utils.TransBufSize)
+	n, err := conn.Read(buf)
+	if err != nil {
+		t.Fatal("Fail to read net response: ", err.Error())
+	}
+
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() {
+		t.Fatal("Fail to parse net response")
+	}
+
+	if dataStream.Len()-1 != int(dataStream.Data()[0]) {
+		t.Error("Net response format error")
+	}
+	if string(dataStream.Data()[1:]) != ans {
+		t.Error("Net response content error:", string(dataStream.Data()[1:]))
+	}
+
+	t.Log("Test", addr, ans, "finished")
+
 }

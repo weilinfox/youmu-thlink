@@ -434,10 +434,10 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 								Warn("Send data to connected udp error or send count not match")
 
 							// reconnect
-							localAddr := udpConn.LocalAddr()
-							udpLocalAddr, _ := net.ResolveUDPAddr("udp", localAddr.String())
-							_ = udpConn.Close()
-							udpConn, _ = net.DialUDP("udp", nil, udpLocalAddr)
+							// localAddr := udpConn.LocalAddr()
+							// udpLocalAddr, _ := net.ResolveUDPAddr("udp", localAddr.String())
+							// _ = udpConn.Close()
+							// udpConn, _ = net.DialUDP("udp", nil, udpLocalAddr)
 						}
 					}
 
