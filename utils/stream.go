@@ -74,7 +74,7 @@ const (
 	TUNNEL                          // TUNNEL ask for new tunnel
 	LZW_DATA                        // LZW_DATA lzw compressed data
 	NET_INFO                        // NET_INFO ask for all broker address in this net
-	UPDATE_NET_INFO                 // UPDATE_NET_INFO add or delete broker address in net
+	NET_INFO_UPDATE                 // NET_INFO_UPDATE add or delete broker address in net
 	BROKER_INFO                     // BROKER_INFO info of this broker
 )
 
