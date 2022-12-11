@@ -28,23 +28,23 @@ func Main(listenAddr string, upperAddr string) {
 
 	_, slistenPort, err := net.SplitHostPort(listenAddr)
 	if err != nil {
-		logger.WithError(err).Fatal("Adddress split error")
+		logger.WithError(err).Fatal("Address split error")
 	}
 	listenPort64, err := strconv.ParseInt(slistenPort, 10, 32)
 	selfPort = int(listenPort64)
 	tcpAddr, err := net.ResolveTCPAddr("tcp", listenAddr)
 	if err != nil {
-		logger.WithError(err).Fatal("Adddress port parse error")
+		logger.WithError(err).Fatal("Address port parse error")
 	}
 	if err != nil {
-		logger.WithError(err).Fatal("Adddress resolve error")
+		logger.WithError(err).Fatal("Address resolve error")
 	}
 
 	// start udp command interface
 	logger.Info("Start tcp command interface at " + tcpAddr.String())
 	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
-		logger.WithError(err).Fatal("Adddress listen failed")
+		logger.WithError(err).Fatal("Address listen failed")
 	}
 	defer listener.Close()
 
@@ -64,6 +64,7 @@ func Main(listenAddr string, upperAddr string) {
 						upperAddress = ""
 					}
 				} else {
+					logger.Debug("Ping upper addr")
 					_, err = tcpConn.Write(utils.NewDataFrame(utils.UPDATE_NET_INFO, []byte{byte(selfPort >> 8), byte(selfPort)}))
 					if err != nil {
 						if upperAddress == "" {
@@ -84,7 +85,8 @@ func Main(listenAddr string, upperAddr string) {
 						if err != nil {
 							logger.WithError(err).Fatal("Upper broker connect for sync error")
 						}
-						_, err = tcpConn.Write(utils.NewDataFrame(utils.NET_INFO, nil))
+						logger.Info("Sync brokers in thlink network")
+						_, err = tcpConn.Write(utils.NewDataFrame(utils.NET_INFO, []byte{byte(selfPort >> 8), byte(selfPort)}))
 						if err != nil {
 							logger.WithError(err).Fatal("Send NET_INFO to upper broker error")
 						}
@@ -131,6 +133,7 @@ func Main(listenAddr string, upperAddr string) {
 						logger.WithError(err).Warn("Send new broker 1 jump broker error")
 						continue
 					}
+					logger.Debug("Send timeout broker data to ", k)
 					_, _ = bkrConn.Write(utils.NewDataFrame(utils.UPDATE_NET_INFO, data))
 
 				}
@@ -140,6 +143,7 @@ func Main(listenAddr string, upperAddr string) {
 					if err != nil {
 						logger.WithError(err).Warn("Send new broker to upper broker error")
 					} else {
+						logger.Debug("Send timeout broker data to upper broker ", upperAddress)
 						_, _ = bkrConn.Write(utils.NewDataFrame(utils.UPDATE_NET_INFO, data))
 					}
 				}
@@ -234,43 +238,48 @@ func Main(listenAddr string, upperAddr string) {
 
 			case utils.NET_INFO:
 				// broker count BrokersCntMax max, broker No bigger than BrokersCntMax will not send
-				var data []byte
-				var count int
-				for k, _ := range newBrokers {
-					if count > BrokersCntMax {
-						break
+				// NET_INFO, self port 16bit (client should be 0)
+				if cmdLen == 2 {
+
+					var data []byte
+					var count int
+					rp := int(cmdData[0])<<8 + int(cmdData[1])
+					for k, _ := range newBrokers {
+						if count > BrokersCntMax {
+							break
+						}
+
+						hr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+						if k == net.JoinHostPort(hr, strconv.Itoa(rp)) {
+							continue
+						}
+
+						data = append(data, byte(len(k)))
+						data = append(data, []byte(k)...)
+
+						count++
+					}
+					for k, _ := range netBrokers {
+						if count > BrokersCntMax {
+							break
+						}
+
+						data = append(data, byte(len(k)))
+						data = append(data, []byte(k)...)
+
+						count++
+					}
+					if count <= BrokersCntMax && upperAddress != "" {
+						data = append(data, byte(len(upperAddress)))
+						data = append(data, []byte(upperAddress)...)
 					}
 
-					h, _, _ := net.SplitHostPort(k)
-					hr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-					if h == hr {
-						continue
+					// all known broker address
+					_, err := conn.Write(utils.NewDataFrame(utils.NET_INFO, data))
+					if err != nil {
+						logger.WithError(err).Error("Send response failed")
 					}
 
-					data = append(data, byte(len(k)))
-					data = append(data, []byte(k)...)
-
-					count++
-				}
-				for k, _ := range netBrokers {
-					if count > BrokersCntMax {
-						break
-					}
-
-					data = append(data, byte(len(k)))
-					data = append(data, []byte(k)...)
-
-					count++
-				}
-				if count <= BrokersCntMax && upperAddress != "" {
-					data = append(data, byte(len(upperAddress)))
-					data = append(data, []byte(upperAddress)...)
-				}
-
-				// all known broker address
-				_, err := conn.Write(utils.NewDataFrame(utils.NET_INFO, data))
-				if err != nil {
-					logger.WithError(err).Error("Send response failed")
 				}
 
 			case utils.UPDATE_NET_INFO:
@@ -295,6 +304,10 @@ func Main(listenAddr string, upperAddr string) {
 						newData = append(newData, []byte(peerAddress)...)
 						// send to other 1 jump brokers
 						for k, _ := range newBrokers {
+
+							if k == peerAddress {
+								continue
+							}
 
 							bkrConn, err := net.DialTimeout("tcp", k, time.Second)
 							if err != nil {

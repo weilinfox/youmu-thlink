@@ -13,16 +13,19 @@ import (
 	"github.com/weilinfox/youmu-thlink/utils"
 
 	"github.com/lucas-clemente/quic-go"
+	"github.com/sirupsen/logrus"
 )
 
 const (
-	serverHost    = "localhost"
-	serverAddress = serverHost + ":4646"
-	serverAddress2 = serverHost+":4647"
+	serverHost     = "localhost"
+	serverAddress  = serverHost + ":4646"
+	serverAddress2 = serverHost + ":4647"
 )
 
 func TestRun(t *testing.T) {
 	t.Log("Run broker")
+
+	logrus.SetLevel(logrus.DebugLevel)
 	go Main("127.0.0.1:4646", "")
 	go Main("127.0.0.1:4647", serverAddress)
 	//time.Sleep(time.Second)
@@ -344,7 +347,7 @@ func testNetInfo(addr string, ans string, t *testing.T) {
 	}
 	defer conn.Close()
 
-	_, err = conn.Write(utils.NewDataFrame(utils.NET_INFO, nil))
+	_, err = conn.Write(utils.NewDataFrame(utils.NET_INFO, []byte{0, 0}))
 	if err != nil {
 		t.Fatal("Fail to send net info command: ", err.Error())
 	}
