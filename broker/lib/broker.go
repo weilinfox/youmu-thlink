@@ -67,8 +67,6 @@ func Main(listenAddr string, upperAddr string) {
 						upperAddress = ""
 					}
 
-					_ = tcpConn.Close()
-
 				} else {
 
 					// logger.Debug("Ping upper addr")
@@ -91,33 +89,39 @@ func Main(listenAddr string, upperAddr string) {
 
 						// sync broker list
 						tcpConn, err := net.DialTimeout("tcp", upperAddr, time.Second)
-						if err != nil {
-							logger.WithError(err).Fatal("Upper broker connect for sync error")
-						}
-						logger.Info("Sync brokers in thlink network")
-						_, err = tcpConn.Write(utils.NewDataFrame(utils.NET_INFO, []byte{byte(selfPort >> 8), byte(selfPort)}))
-						if err != nil {
-							logger.WithError(err).Fatal("Send NET_INFO to upper broker error")
-						}
-						// read broker list
-						buf := make([]byte, utils.TransBufSize)
-						n, err := tcpConn.Read(buf)
-						if err != nil {
-							logger.WithError(err).Fatal("Read NET_INFO response error")
-						}
-						// parse broker list
-						dataStream := utils.NewDataStream()
-						dataStream.Append(buf[:n])
-						if !dataStream.Parse() {
-							logger.Fatal("Parse NET_INFO response error")
-						}
-						for i := 0; i < dataStream.Len(); {
-							logger.Info("Sync broker: ", string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])]))
-							netBrokers[string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])])] = time.Now()
-							i += 1 + int(dataStream.Data()[i])
-						}
 
-						_ = tcpConn.Close()
+						if err != nil {
+
+							logger.WithError(err).Fatal("Upper broker connect for sync error")
+
+						} else {
+
+							logger.Info("Sync brokers in thlink network")
+							_, err = tcpConn.Write(utils.NewDataFrame(utils.NET_INFO, []byte{byte(selfPort >> 8), byte(selfPort)}))
+							if err != nil {
+								logger.WithError(err).Fatal("Send NET_INFO to upper broker error")
+							}
+							// read broker list
+							buf := make([]byte, utils.TransBufSize)
+							n, err := tcpConn.Read(buf)
+							if err != nil {
+								logger.WithError(err).Fatal("Read NET_INFO response error")
+							}
+							// parse broker list
+							dataStream := utils.NewDataStream()
+							dataStream.Append(buf[:n])
+							if !dataStream.Parse() {
+								logger.Fatal("Parse NET_INFO response error")
+							}
+							for i := 0; i < dataStream.Len(); {
+								logger.Info("Sync broker: ", string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])]))
+								netBrokers[string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])])] = time.Now()
+								i += 1 + int(dataStream.Data()[i])
+							}
+
+							_ = tcpConn.Close()
+
+						}
 
 					}
 
