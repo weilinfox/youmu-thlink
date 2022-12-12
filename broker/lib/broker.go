@@ -355,10 +355,10 @@ func Main(listenAddr string, upperAddr string) {
 							u := routeData[i] & 0x80
 							l := int(routeData[i] & 0x7f)
 							if u > 0 {
-								logger.Info("Remove broker: ", string(routeData[i+1:i+1+l]))
+								logger.WithField("from", conn.RemoteAddr()).Info("Remove broker: ", string(routeData[i+1:i+1+l]))
 								delete(netBrokers, string(routeData[i+1:i+1+l]))
 							} else {
-								logger.Info("New broker: ", string(routeData[i+1:i+1+l]))
+								logger.WithField("from", conn.RemoteAddr()).Info("New broker: ", string(routeData[i+1:i+1+l]))
 								netBrokers[string(routeData[i+1:i+1+l])] = time.Now()
 							}
 							i += l
@@ -377,7 +377,7 @@ func Main(listenAddr string, upperAddr string) {
 								continue
 							}
 							logger.Debug("Send new broker to ", k)
-							_, _ = bkrConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, routeData))
+							_, _ = bkrConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, append([]byte{byte(selfPort >> 8), byte(selfPort)}, routeData...)))
 
 						}
 						// send to upper broker
@@ -387,7 +387,7 @@ func Main(listenAddr string, upperAddr string) {
 								logger.WithError(err).Warn("Send broker update to upper broker error")
 							} else {
 								logger.Debug("Send new broker to ", upperAddress)
-								_, _ = bkrConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, routeData))
+								_, _ = bkrConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, append([]byte{byte(selfPort >> 8), byte(selfPort)}, routeData...)))
 							}
 						}
 					}
