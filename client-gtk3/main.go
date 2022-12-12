@@ -499,12 +499,18 @@ func onAppActivate(app *gtk.Application) {
 			}
 			if err == nil {
 				logger.Debug("Show net discovery dialog")
-				err = showNetInfoDialog(infoMapCov)
-				if err != nil {
-					showErrorDialog(appWindow, "Show info discovery dialog error", err)
-				}
+
+				glib.IdleAdd(func() bool {
+					err = showNetInfoDialog(infoMapCov)
+					if err != nil {
+						showErrorDialog(appWindow, "Show info discovery dialog error", err)
+					}
+					return false
+				})
+
 			}
 		}()
+
 	})
 	app.AddAction(aNetDisc)
 
