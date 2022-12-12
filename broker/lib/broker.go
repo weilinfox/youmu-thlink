@@ -23,6 +23,7 @@ const BrokersCntMax = 40
 func Main(listenAddr string, upperAddr string) {
 
 	var upperAddress string // upper
+	var upperStatus = 0     // upper broker 0 health, >0 retry times
 	var selfPort int        // self port
 	var newBrokers sync.Map // 1 jump string=>time.Time
 	var netBrokers sync.Map // >1 jump string=>time.Time
@@ -64,9 +65,8 @@ func Main(listenAddr string, upperAddr string) {
 					if upperAddress == "" {
 						logger.WithError(err).Fatal("Upper broker connect error")
 					} else {
-						logger.WithError(err).Error("Upper broker connect error")
-						upperAddress = ""
-						upperAddr = ""
+						upperStatus++
+						logger.WithError(err).WithField("retry", upperStatus).Error("Upper broker connect error")
 					}
 
 				} else {
@@ -77,8 +77,8 @@ func Main(listenAddr string, upperAddr string) {
 						if upperAddress == "" {
 							logger.WithError(err).Fatal("Send NET_INFO_UPDATE to upper broker error")
 						} else {
-							logger.WithError(err).Error("Send NET_INFO_UPDATE to upper broker error")
-							upperAddress = ""
+							upperStatus++
+							logger.WithError(err).WithField("retry", upperStatus).Error("Send NET_INFO_UPDATE to upper broker error")
 						}
 					}
 
@@ -87,6 +87,7 @@ func Main(listenAddr string, upperAddr string) {
 					// first time
 					if upperAddress == "" {
 						upperAddress = tcpConn.RemoteAddr().String()
+						upperStatus = 0
 						logger.Info("Upper broker connected ", upperAddress)
 
 						// sync broker list
