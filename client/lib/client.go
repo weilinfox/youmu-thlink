@@ -229,3 +229,109 @@ func (c *Client) PeerHost() string {
 func (c *Client) Serving() bool {
 	return c.serving
 }
+
+// NetBrokerDelay broker delay nanoseconds in network
+func NetBrokerDelay(server string) (map[string]int, error) {
+
+	// ask for net info
+	logger.Info("Get broker list")
+	tcpAddr, err := net.ResolveTCPAddr("tcp", server)
+	if err != nil {
+		return nil, err
+	}
+
+	tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		return nil, err
+	}
+	defer tcpConn.Close()
+
+	_, err = tcpConn.Write(utils.NewDataFrame(utils.NET_INFO, []byte{0, 0}))
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, utils.TransBufSize)
+	n, err := tcpConn.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	// parse broker list
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() {
+		logger.Fatal("Parse net info response failed")
+	}
+
+	serverList := make([]string, utils.BrokersCntMax+1)
+	serverList[0] = server // NET_INFO return brokers except itself
+	serverListCnt := 1
+	for i := 0; i < dataStream.Len() && serverListCnt < utils.BrokersCntMax+1; i++ {
+		l := int(dataStream.Data()[i])
+
+		serverList[serverListCnt] = string(dataStream.Data()[i+1 : i+1+l])
+		serverListCnt++
+		i += l
+	}
+
+	// ping every broker *5
+	logger.Info("Ping broker delay")
+	const pingTimes = 5
+	serverDelay := make([]time.Time, utils.BrokersCntMax+1)
+	for j := 0; j < pingTimes; j++ {
+		for i := 0; i < serverListCnt; i++ {
+
+			// dial port
+			conn, err := net.DialTimeout("tcp", serverList[i], time.Millisecond*500)
+			if err != nil {
+				logger.WithError(err).Warn("Cannot connect to broker")
+				serverDelay[i] = serverDelay[i].Add(time.Second)
+				continue
+			}
+
+			// send ping
+			timeSend := time.Now()
+			_ = conn.SetWriteDeadline(time.Now().Add(time.Millisecond * 500))
+			_, err = conn.Write(utils.NewDataFrame(utils.PING, nil))
+			_ = conn.SetWriteDeadline(time.Time{})
+			if err != nil {
+				_ = conn.Close()
+				logger.WithError(err).Warn("Send ping failed")
+				serverDelay[i] = serverDelay[i].Add(time.Second)
+				continue
+			}
+			_ = conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
+			n, err := conn.Read(buf)
+			_ = conn.SetReadDeadline(time.Time{})
+			if err != nil {
+				_ = conn.Close()
+				logger.WithError(err).Warn("Get ping response failed")
+				serverDelay[i] = serverDelay[i].Add(time.Second)
+				continue
+			}
+			_ = conn.Close()
+			timeResp := time.Now()
+
+			// parse response
+			dataStream = utils.NewDataStream()
+			dataStream.Append(buf[:n])
+			if !dataStream.Parse() || dataStream.Type() != utils.PING {
+				logger.Debug("Invalid PING response from server")
+				serverDelay[i] = serverDelay[i].Add(time.Second)
+				continue
+			}
+
+			serverDelay[i] = serverDelay[i].Add(timeResp.Sub(timeSend))
+		}
+	}
+
+	// make ping delay map
+	serverDelayMap := make(map[string]int)
+	for i := 0; i < serverListCnt; i++ {
+		serverDelayMap[serverList[i]] = serverDelay[i].Nanosecond() / pingTimes
+	}
+
+	return serverDelayMap, nil
+
+}

@@ -18,8 +18,6 @@ var logger = logrus.WithField("broker", "internal")
 
 var peers = make(map[int]int)
 
-const BrokersCntMax = 40
-
 func Main(listenAddr string, upperAddr string) {
 
 	var upperAddress string // upper
@@ -266,7 +264,7 @@ func Main(listenAddr string, upperAddr string) {
 					ar := net.JoinHostPort(hr, strconv.Itoa(rp))
 					logger.Debug("Net info command from ", ar)
 					newBrokers.Range(func(k, _ interface{}) bool {
-						if count > BrokersCntMax {
+						if count > utils.BrokersCntMax {
 							return false
 						}
 
@@ -281,7 +279,7 @@ func Main(listenAddr string, upperAddr string) {
 						return true
 					})
 					netBrokers.Range(func(k, _ interface{}) bool {
-						if count > BrokersCntMax {
+						if count > utils.BrokersCntMax {
 							return false
 						}
 
@@ -291,7 +289,7 @@ func Main(listenAddr string, upperAddr string) {
 						count++
 						return true
 					})
-					if count <= BrokersCntMax && upperAddress != "" {
+					if count <= utils.BrokersCntMax && upperAddress != "" {
 						data = append(data, byte(len(upperAddress)))
 						data = append(data, []byte(upperAddress)...)
 					}

@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	CmdBufSize   = 64       // command frame size
-	TransBufSize = 2048 - 3 // forward frame size
+	CmdBufSize    = 64       // command frame size
+	TransBufSize  = 2048 - 3 // forward frame size
+	BrokersCntMax = 40       // max broker count
 )
 
 var loggerStream = logrus.WithField("utils", "stream")
