@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -100,6 +101,7 @@ func onAppActivate(app *gtk.Application) {
 	}
 	menu := glib.MenuNew()
 	menu.Append("Reset config", "app.reset")
+	menu.Append("Network discovery", "app.net-disc")
 	menu.Append("Tunnel info", "app.info")
 	menu.Append("About thlink", "app.about")
 	menu.Append("Quit", "app.quit")
@@ -377,6 +379,134 @@ func onAppActivate(app *gtk.Application) {
 		protoRadioTcp.SetActive(true)
 	})
 	app.AddAction(aReset)
+
+	// net discover action
+	aNetDisc := glib.SimpleActionNew("net-disc", nil)
+	aNetDisc.Connect("activate", func() {
+
+		// showNetInfoDialog show network delay info dialog
+		showNetInfoDialog := func(infoMap map[int]string) error {
+			// prepare data
+			sortDelay := make([]int, len(infoMap))
+			i := 0
+			for k, _ := range infoMap {
+				sortDelay[i] = k
+				i++
+			}
+			sort.Ints(sortDelay)
+
+			// setup dialog with button
+			dialog, err := gtk.DialogNew()
+			if err != nil {
+				return err
+			}
+			dialog.SetIcon(icon)
+			dialog.SetTitle("Network discovery")
+			btn, err := dialog.AddButton("Close", gtk.RESPONSE_CLOSE)
+			if err != nil {
+				return err
+			}
+			btn.Connect("clicked", func() {
+				dialog.Destroy()
+			})
+
+			infoTreeView, err := gtk.TreeViewNew()
+			if err != nil {
+				return err
+			}
+
+			// setup dialog with TreeView
+			dialogBox, err := dialog.GetContentArea()
+			if err != nil {
+				return err
+			}
+			dialogBox.Add(infoTreeView)
+
+			// setup TreeView
+			cellRenderer, err := gtk.CellRendererTextNew()
+			if err != nil {
+				return err
+			}
+			serverColumn, err := gtk.TreeViewColumnNewWithAttribute("Server", cellRenderer, "text", 0)
+			if err != nil {
+				return err
+			}
+			delayColumn, err := gtk.TreeViewColumnNewWithAttribute("Delay", cellRenderer, "text", 1)
+			if err != nil {
+				return err
+			}
+			infoListStore, err := gtk.ListStoreNew(glib.TYPE_STRING, glib.TYPE_STRING)
+			if err != nil {
+				return err
+			}
+			infoTreeView.AppendColumn(serverColumn)
+			infoTreeView.AppendColumn(delayColumn)
+			infoTreeView.SetModel(infoListStore)
+			infoTreeView.Connect("row-activated", func(_ *gtk.TreeView, p *gtk.TreePath, _ *gtk.TreeViewColumn) {
+
+				i := p.GetIndices()[0]
+				logger.Debug("Net server selected ", i)
+
+				serverEntry.SetText(infoMap[sortDelay[i]])
+
+				dialog.Destroy()
+
+			})
+
+			// append data
+			for _, k := range sortDelay {
+				logger.Debug("Append server info ", infoMap[k], " delay ", k)
+				iter := infoListStore.Append()
+				err = infoListStore.Set(iter, []int{0, 1}, []interface{}{infoMap[k], fmt.Sprintf("%.3fms", float64(k)/1000000)})
+				if err != nil {
+					return err
+				}
+			}
+
+			// single selection
+			infoSel, err := infoTreeView.GetSelection()
+			if err != nil {
+				return err
+			}
+			infoSel.SetMode(gtk.SELECTION_SINGLE)
+
+			dialog.ShowAll()
+
+			return nil
+		}
+
+		go func() {
+			infoMap, err := client.NetBrokerDelay(client.DefaultServerHost)
+			if err != nil {
+				logger.WithError(err).Warn("Get network broker delay error")
+
+				userServer, err := serverEntry.GetText()
+				if err != nil {
+					logger.WithError(err).Warn("Get server entry text error")
+				} else {
+					infoMap, err = client.NetBrokerDelay(userServer)
+
+					if err != nil {
+						showErrorDialog(appWindow, "Net discovery Failed", err)
+					}
+				}
+			}
+
+			// show net discovery dialog
+			infoMapCov := make(map[int]string)
+			for k, v := range infoMap {
+				infoMapCov[v] = k
+			}
+			if err == nil {
+				logger.Debug("Show net discovery dialog")
+				err = showNetInfoDialog(infoMapCov)
+				if err != nil {
+					showErrorDialog(appWindow, "Show info discovery dialog error", err)
+				}
+			}
+		}()
+	})
+	app.AddAction(aNetDisc)
 
 	// add items to grid
 	mainGrid.Add(serverLabel)
