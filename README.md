@@ -16,17 +16,17 @@
 2. 可选的 QUIC 和 TCP 传输
 3. 支持使用 UDP 进行联机的东方作品
 4. 可配置的监听端口和服务器地址，方便自搭建
-5. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
-6. 符合习惯的命令行客户端和易用的 gtk3 图形客户端
-7. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
-8. 代码乱七八糟
+5. 支持去中心化的多服务器结构
+6. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
+7. 符合习惯的命令行客户端和易用的 gtk3 图形客户端
+8. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
+9. 代码乱七八糟
 
 ## TODO
 
 1. 观战支持
-2. 多服务器支持
-3. 测试更多作品
-4. 支持 TCP 转发
+2. 测试更多作品
+3. 支持 TCP 转发
 
 ## 下载
 
@@ -144,6 +144,8 @@ $ go mod=vendor build -o build/thlink-client-gtk ./client-gtk3
 ### 部署
 
 broker 为服务端， client 为客户端。
+
+若想将自己的 broker 连入其他 broker 的网络，只要连接这个网络中的任一 broker 即可，它们的地位是平行的。
 
 broker 在服务器运行即可， ``broker -h`` 查看选项； client 在本地运行， ``client -h`` 查看选项。
 
