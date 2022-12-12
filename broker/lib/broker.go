@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/weilinfox/youmu-thlink/utils"
@@ -21,10 +22,10 @@ const BrokersCntMax = 40
 
 func Main(listenAddr string, upperAddr string) {
 
-	var upperAddress string                     // upper
-	var selfPort int                            // self port
-	var newBrokers = make(map[string]time.Time) // 1 jump
-	var netBrokers = make(map[string]time.Time) // >1 jump
+	var upperAddress string // upper
+	var selfPort int        // self port
+	var newBrokers sync.Map // 1 jump string=>time.Time
+	var netBrokers sync.Map // >1 jump string=>time.Time
 
 	_, slistenPort, err := net.SplitHostPort(listenAddr)
 	if err != nil {
@@ -65,6 +66,7 @@ func Main(listenAddr string, upperAddr string) {
 					} else {
 						logger.WithError(err).Error("Upper broker connect error")
 						upperAddress = ""
+						upperAddr = ""
 					}
 
 				} else {
@@ -115,7 +117,7 @@ func Main(listenAddr string, upperAddr string) {
 							}
 							for i := 0; i < dataStream.Len(); {
 								logger.Info("Sync broker: ", string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])]))
-								netBrokers[string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])])] = time.Now()
+								netBrokers.Store(string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])]), time.Now())
 								i += 1 + int(dataStream.Data()[i])
 							}
 
@@ -131,27 +133,27 @@ func Main(listenAddr string, upperAddr string) {
 
 			// find 10s timeout broker
 			data := []byte{byte(selfPort >> 8), byte(selfPort)}
-			for k, v := range newBrokers {
-				if time.Now().Sub(v).Seconds() > 10 {
+			newBrokers.Range(func(k, v interface{}) bool {
+				if time.Now().Sub(v.(time.Time)).Seconds() > 10 {
 					logger.Info("Timeout broker: ", k)
-					delete(newBrokers, k)
-					data = append(data, byte(len(k))|0x80)
-					data = append(data, []byte(k)...)
+					newBrokers.Delete(k)
+					data = append(data, byte(len(k.(string)))|0x80)
+					data = append(data, []byte(k.(string))...)
 				}
-			}
+				return true
+			})
 			if len(data) > 2 {
 				// tell 1 jump brokers
-				for k, _ := range newBrokers {
-
-					bkrConn, err := net.DialTimeout("tcp", k, time.Second)
+				newBrokers.Range(func(k, _ interface{}) bool {
+					bkrConn, err := net.DialTimeout("tcp", k.(string), time.Second)
 					if err != nil {
 						logger.WithError(err).Warn("Send new broker 1 jump broker error")
-						continue
+						return true
 					}
-					logger.Debug("Send timeout broker data to ", k)
+					logger.Debug("Send timeout broker data to ", k.(string))
 					_, _ = bkrConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, data))
-
-				}
+					return true
+				})
 				// tell upper broker
 				if upperAddress != "" {
 					bkrConn, err := net.DialTimeout("tcp", upperAddress, time.Second)
@@ -262,30 +264,32 @@ func Main(listenAddr string, upperAddr string) {
 					hr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 					ar := net.JoinHostPort(hr, strconv.Itoa(rp))
 					logger.Debug("Net info command from ", ar)
-					for k, _ := range newBrokers {
+					newBrokers.Range(func(k, _ interface{}) bool {
 						if count > BrokersCntMax {
-							break
+							return false
 						}
 
 						if k == ar {
-							continue
+							return true
 						}
 
-						data = append(data, byte(len(k)))
-						data = append(data, []byte(k)...)
+						data = append(data, byte(len(k.(string))))
+						data = append(data, []byte(k.(string))...)
 
 						count++
-					}
-					for k, _ := range netBrokers {
+						return true
+					})
+					netBrokers.Range(func(k, _ interface{}) bool {
 						if count > BrokersCntMax {
-							break
+							return false
 						}
 
-						data = append(data, byte(len(k)))
-						data = append(data, []byte(k)...)
+						data = append(data, byte(len(k.(string))))
+						data = append(data, []byte(k.(string))...)
 
 						count++
-					}
+						return true
+					})
 					if count <= BrokersCntMax && upperAddress != "" {
 						data = append(data, byte(len(upperAddress)))
 						data = append(data, []byte(upperAddress)...)
@@ -310,33 +314,34 @@ func Main(listenAddr string, upperAddr string) {
 
 					// ping package
 					if peerAddress != upperAddress {
-						if _, ok := newBrokers[peerAddress]; ok {
+						if _, ok := newBrokers.Load(peerAddress); ok {
 							// old broker
-							newBrokers[peerAddress] = time.Now()
+							newBrokers.Store(peerAddress, time.Now())
 						} else {
 
 							// new broker, no response
-							newBrokers[peerAddress] = time.Now()
+							newBrokers.Store(peerAddress, time.Now())
 							logger.Info("New broker connected: ", peerAddress)
 
 							newData := []byte{byte(selfPort >> 8), byte(selfPort), byte(len(peerAddress))}
 							newData = append(newData, []byte(peerAddress)...)
 							// send to other 1 jump brokers
-							for k, _ := range newBrokers {
+							newBrokers.Range(func(k, _ interface{}) bool {
 
 								if k == peerAddress {
-									continue
+									return true
 								}
 
-								bkrConn, err := net.DialTimeout("tcp", k, time.Second)
+								bkrConn, err := net.DialTimeout("tcp", k.(string), time.Second)
 								if err != nil {
 									logger.WithError(err).Warn("Send new broker 1 jump broker error")
-									continue
+									return true
 								}
-								logger.Debug("Send new broker to ", k)
+								logger.Debug("Send new broker to ", k.(string))
 								_, _ = bkrConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, newData))
 
-							}
+								return true
+							})
 							// send to upper broker
 							if upperAddress != "" {
 								bkrConn, err := net.DialTimeout("tcp", upperAddress, time.Second)
@@ -360,30 +365,31 @@ func Main(listenAddr string, upperAddr string) {
 							l := int(routeData[i] & 0x7f)
 							if u > 0 {
 								logger.WithField("from", conn.RemoteAddr()).Info("Remove broker: ", string(routeData[i+1:i+1+l]))
-								delete(netBrokers, string(routeData[i+1:i+1+l]))
+								netBrokers.Delete(string(routeData[i+1 : i+1+l]))
 							} else {
 								logger.WithField("from", conn.RemoteAddr()).Info("New broker: ", string(routeData[i+1:i+1+l]))
-								netBrokers[string(routeData[i+1:i+1+l])] = time.Now()
+								netBrokers.Store(string(routeData[i+1:i+1+l]), time.Now())
 							}
 							i += l
 						}
 
 						// send to other 1 jump brokers
-						for k, _ := range newBrokers {
+						newBrokers.Range(func(k, _ interface{}) bool {
 
 							if k == peerAddress {
-								continue
+								return true
 							}
 
-							bkrConn, err := net.DialTimeout("tcp", k, time.Second)
+							bkrConn, err := net.DialTimeout("tcp", k.(string), time.Second)
 							if err != nil {
 								logger.WithError(err).Warn("Send broker update to 1 jump broker error")
-								continue
+								return true
 							}
-							logger.Debug("Send new broker to ", k)
+							logger.Debug("Send new broker to ", k.(string))
 							_, _ = bkrConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, append([]byte{byte(selfPort >> 8), byte(selfPort)}, routeData...)))
 
-						}
+							return true
+						})
 						// send to upper broker
 						if upperAddress != "" && peerAddress != upperAddress {
 							bkrConn, err := net.DialTimeout("tcp", upperAddress, time.Second)
