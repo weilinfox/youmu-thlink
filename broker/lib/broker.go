@@ -55,15 +55,22 @@ func Main(listenAddr string, upperAddr string) {
 		for {
 			// tell upper broker
 			if upperAddr != "" {
+
 				tcpConn, err := net.DialTimeout("tcp", upperAddr, time.Second)
+
 				if err != nil {
+
 					if upperAddress == "" {
 						logger.WithError(err).Fatal("Upper broker connect error")
 					} else {
 						logger.WithError(err).Error("Upper broker connect error")
 						upperAddress = ""
 					}
+
+					_ = tcpConn.Close()
+
 				} else {
+
 					// logger.Debug("Ping upper addr")
 					_, err = tcpConn.Write(utils.NewDataFrame(utils.NET_INFO_UPDATE, []byte{byte(selfPort >> 8), byte(selfPort)}))
 					if err != nil {
@@ -74,6 +81,8 @@ func Main(listenAddr string, upperAddr string) {
 							upperAddress = ""
 						}
 					}
+
+					_ = tcpConn.Close()
 
 					// first time
 					if upperAddress == "" {
@@ -107,11 +116,13 @@ func Main(listenAddr string, upperAddr string) {
 							netBrokers[string(dataStream.Data()[i+1:i+1+int(dataStream.Data()[i])])] = time.Now()
 							i += 1 + int(dataStream.Data()[i])
 						}
+
 						_ = tcpConn.Close()
+
 					}
+
 				}
 
-				_ = tcpConn.Close()
 			}
 
 			// find 10s timeout broker
