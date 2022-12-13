@@ -84,4 +84,9 @@ void status_icon_text_set( const char *text )
 	gtk_status_icon_set_tooltip_text(_icon, text);
 }
 
+void status_icon_hide()
+{
+	gtk_status_icon_set_visible( _icon, FALSE );
+}
+
 #endif

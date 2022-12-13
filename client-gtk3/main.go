@@ -567,6 +567,7 @@ func onAppActivate(app *gtk.Application) {
 
 // onAppDestroy close client
 func onAppDestroy() {
+	setStatusIconHide()
 	clientStatus.client.Close()
 }
 
