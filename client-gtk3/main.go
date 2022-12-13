@@ -545,11 +545,15 @@ func onAppActivate(app *gtk.Application) {
 	go func() {
 		for {
 			time.Sleep(time.Second * 2)
-			if clientStatus.client.Serving() {
-				setPingLabel(clientStatus.client.TunnelDelay())
-			} else {
-				setPingLabel(clientStatus.client.Ping())
-			}
+
+			glib.IdleAdd(func() bool {
+				if clientStatus.client.Serving() {
+					setPingLabel(clientStatus.client.TunnelDelay())
+				} else {
+					setPingLabel(clientStatus.client.Ping())
+				}
+				return false
+			})
 		}
 	}()
 
