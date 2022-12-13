@@ -12,5 +12,5 @@ func onStatusIconSetup(window *gtk.ApplicationWindow) {
 }
 
 func setStatusIconText(text string) {
-	C.status_icon_title_set(C.CString(text))
+	C.status_icon_text_set(C.CString(text))
 }
