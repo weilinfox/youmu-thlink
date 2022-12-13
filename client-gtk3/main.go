@@ -313,8 +313,10 @@ func onAppActivate(app *gtk.Application) {
 			err := clientStatus.client.Serve()
 			if err != nil {
 				logger.WithError(err).Error("Connect failed")
-				showErrorDialog(appWindow, "Connect failed", err)
-				return
+				glib.IdleAdd(func() bool {
+					showErrorDialog(appWindow, "Connect failed", err)
+					return false
+				})
 			}
 		}()
 
@@ -483,12 +485,16 @@ func onAppActivate(app *gtk.Application) {
 				userServer, err := serverEntry.GetText()
 				if err != nil {
 					logger.WithError(err).Warn("Get server entry text error")
-				} else {
-					infoMap, err = client.NetBrokerDelay(userServer)
+					return
+				}
 
-					if err != nil {
+				infoMap, err = client.NetBrokerDelay(userServer)
+
+				if err != nil {
+					glib.IdleAdd(func() bool {
 						showErrorDialog(appWindow, "Net discovery Failed", err)
-					}
+						return false
+					})
 				}
 			}
 
