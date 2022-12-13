@@ -531,6 +531,9 @@ func onAppActivate(app *gtk.Application) {
 	mainGrid.Add(addrLabel)
 	mainGrid.Add(ctlBtnBox)
 
+	// tray icon
+	onStatusIconSetup(appWindow)
+
 	appWindow.SetTitlebar(header)
 	if icon != nil {
 		appWindow.SetIcon(icon)
