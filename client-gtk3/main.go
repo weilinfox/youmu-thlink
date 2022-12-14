@@ -61,10 +61,22 @@ func main() {
 
 }
 
+var appWindow *gtk.ApplicationWindow
+
 // onAppActivate setup Main window
 func onAppActivate(app *gtk.Application) {
 
-	appWindow, err := gtk.ApplicationWindowNew(app)
+	var err error
+
+	if appWindow != nil {
+		if !appWindow.IsVisible() {
+			appWindow.Show()
+		}
+		logger.Debug("Already running")
+		return
+	}
+
+	appWindow, err = gtk.ApplicationWindowNew(app)
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create app window.")
 	}
