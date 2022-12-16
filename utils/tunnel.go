@@ -16,7 +16,7 @@ import (
 const (
 	// TunnelVersion tunnel compatible version
 	TunnelVersion = 1
-	Version       = "0.0.7"
+	Version       = "0.0.8"
 )
 
 // Tunnel just like a bidirectional pipe
