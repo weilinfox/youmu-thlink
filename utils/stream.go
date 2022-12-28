@@ -17,12 +17,12 @@ var loggerStream = logrus.WithField("utils", "stream")
 
 // NewDataFrame build data frame, b can be nil
 //
-//	+----------+------+--------+--------------+
-//	| guest id | type | length |   raw data   |
-//	| 0      3 | 4  7 | 8   23 | 24    < 2047 |
-//	+----------+------+--------+--------------+
+//	+------+--------+--------------+
+//	| type | length |   raw data   |
+//	| 0  7 | 8   23 | 24    < 2047 |
+//	+------+--------+--------------+
 //
-// guest id is for multiple connection on udp, type is defined in DataType
+// type is defined in DataType
 func NewDataFrame(t DataType, b []byte) []byte {
 	if b == nil || len(b) == 0 {
 		return []byte{byte(t), 0x00, 0x00}
