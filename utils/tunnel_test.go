@@ -151,7 +151,7 @@ func testTunnel(t *testing.T, udpConn *net.UDPConn, port01 int) {
 				t.Error("Read from udpConn error")
 			}
 			_ = udpConn.SetWriteDeadline(time.Now().Add(time.Millisecond * 500))
-			cnt1, err := udpConn.WriteToUDP(buf, udpAddr)
+			cnt1, err := udpConn.WriteToUDP(buf[:cnt], udpAddr)
 			_ = udpConn.SetWriteDeadline(time.Time{})
 			if err != nil {
 				t.Error("Write to udpConn error")
@@ -187,7 +187,7 @@ func testTunnel(t *testing.T, udpConn *net.UDPConn, port01 int) {
 
 				for i := 0; i < 5; i++ {
 					_ = udpConn.SetWriteDeadline(time.Now().Add(time.Millisecond * 500))
-					cnt, err := udpConn.Write(data)
+					cnt, err := udpConn.Write(data[:TransBufSize-1])
 					_ = udpConn.SetWriteDeadline(time.Time{})
 					if err != nil {
 						t.Error("Write to tunnel0 error")
@@ -202,7 +202,7 @@ func testTunnel(t *testing.T, udpConn *net.UDPConn, port01 int) {
 						t.Errorf("Write data count not match: %d != %d", cnt, cnt1)
 					}
 
-					for i := 0; i < TransBufSize; i++ {
+					for i := 0; i < TransBufSize-1; i++ {
 						if buf[i] != data[i] {
 							t.Error("Transfer data not count")
 							break

@@ -347,14 +347,12 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 	}
 
 	const maxUdpRemoteNo byte = 0xFF
-	type udpRemote struct {
-		UdpAddr *net.UDPAddr
-		No      byte
-	}
 
-	var udpAddr *net.UDPAddr
+	udpRemoteID := make(map[string]byte) // remote ip record
+	var udpRemotes []*net.UDPAddr
+	udpVClients := make(map[byte]chan []byte) // local virtual client
+
 	var pingTime time.Time
-	udpRemotes := make(map[string]udpRemote)
 	ch := make(chan int, 2)
 
 	// PING
@@ -385,6 +383,70 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 			}
 
 		}()
+
+	}
+
+	// UDP -> QUIC
+	udpVirtualClient := func(id byte, msg chan []byte) {
+
+		if udpConnected {
+
+			udpAddr, _ := net.ResolveUDPAddr("udp", udpConn.RemoteAddr().String())
+			myUdpConn, err := net.DialUDP("udp", nil, udpAddr)
+			if err != nil {
+				loggerTunnel.WithError(err).Error("New udp virtual client failed with dial udp address error")
+				return
+			}
+			loggerTunnel.WithField("ID", id).Debug("New udp virtual client")
+
+			go func() {
+				defer func() {
+					ch <- 1
+				}()
+
+				for {
+					_, err = myUdpConn.Write(<-msg)
+
+					if err != nil {
+						loggerTunnel.WithError(err).Warn("Write data to connected udp error")
+						break
+					}
+				}
+
+			}()
+
+			go func() {
+				defer func() {
+					ch <- 1
+				}()
+				defer myUdpConn.Close()
+
+				buf := make([]byte, TransBufSize)
+
+				for {
+					cnt, err := myUdpConn.Read(buf)
+					if err != nil {
+						loggerTunnel.WithError(err).Warn("Read data from connected udp error")
+						break
+					}
+
+					if cnt != 0 {
+						switch stream := conn.(type) {
+						case quic.Stream:
+							_, err = stream.Write(NewDataFrame(DATA, append([]byte{id}, buf[:cnt]...)))
+						case *net.TCPConn:
+							_, err = stream.Write(NewDataFrame(DATA, append([]byte{id}, buf[:cnt]...)))
+						}
+					}
+					if err != nil {
+						loggerTunnel.WithError(err).Warn("Write data to tunnel error")
+						break
+					}
+				}
+
+			}()
+
+		}
 
 	}
 
@@ -419,17 +481,21 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 
 				case DATA:
 
+					// first byte of data is 8bit guest id
 					if udpConnected {
-						// logger.Info("UDP write")
-						wcnt, err = udpConn.Write(dataStream.Data())
-						// logger.Info("UDP write finish")
-						if err != nil || wcnt != dataStream.Len() {
-							loggerTunnel.WithError(err).WithField("count", dataStream.Len()).WithField("sent", wcnt).
-								Warn("Send data to connected udp error or send count not match")
+
+						if ch, ok := udpVClients[dataStream.Data()[0]]; ok {
+							ch <- dataStream.Data()[1:]
+						} else {
+							ch = make(chan []byte, 32)
+							udpVClients[dataStream.Data()[0]] = ch
+							udpVirtualClient(dataStream.Data()[0], ch)
+							ch <- dataStream.Data()[1:]
 						}
-					} else if udpAddr != nil {
-						wcnt, err = udpConn.WriteToUDP(dataStream.Data(), udpAddr)
-						if err != nil || wcnt != dataStream.Len() {
+
+					} else if len(udpRemotes) > int(dataStream.Data()[0]) {
+						wcnt, err = udpConn.WriteToUDP(dataStream.Data()[1:], udpRemotes[dataStream.Data()[0]])
+						if err != nil || wcnt != dataStream.Len()-1 {
 							loggerTunnel.WithError(err).WithField("count", dataStream.Len()).WithField("sent", wcnt).
 								Warn("Send data to connected udp error or send count not match")
 
@@ -473,25 +539,21 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 	}()
 
 	// UDP -> QUIC
-	go func() {
-		defer func() {
-			ch <- 1
-		}()
+	if !udpConnected {
 
-		buf := make([]byte, TransBufSize)
-		var cnt, wcnt int
-		var err error
+		go func() {
+			defer func() {
+				ch <- 1
+			}()
 
-		for {
+			buf := make([]byte, TransBufSize)
+			var cnt, wcnt int
+			var udpAddr *net.UDPAddr
+			var remoteNo byte = 0
+			var err error
 
-			var remoteNo byte
-			if udpConnected {
-				cnt, err = udpConn.Read(buf)
-				if err != nil {
-					loggerTunnel.WithError(err).Warn("Read data from connected udp error")
-					break
-				}
-			} else {
+			for {
+
 				cnt, udpAddr, err = udpConn.ReadFromUDP(buf)
 				if err != nil {
 					loggerTunnel.WithError(err).Warn("Read data from unconnected udp error")
@@ -499,8 +561,8 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 				}
 
 				addrString := udpAddr.IP.String() + ":" + strconv.Itoa(udpAddr.Port)
-				if v, ok := udpRemotes[addrString]; ok {
-					remoteNo = v.No
+				if v, ok := udpRemoteID[addrString]; ok {
+					remoteNo = v
 				} else {
 					ul := len(udpRemotes)
 					if ul > int(maxUdpRemoteNo) {
@@ -508,38 +570,36 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 						continue
 					}
 					remoteNo = byte(ul)
-					udpRemotes[addrString] = udpRemote{
-						UdpAddr: udpAddr,
-						No:      remoteNo,
-					}
+
+					udpRemoteID[addrString] = remoteNo
+					udpRemotes = append(udpRemotes, udpAddr)
+
 					loggerTunnel.Debug("New UDP connection from ", udpAddr.IP.String(), " port ", udpAddr.Port)
+				}
+
+				var data []byte
+
+				// first byte of data is 8bit guest id
+				data = NewDataFrame(DATA, append([]byte{remoteNo}, buf[:cnt]...))
+
+				switch stream := conn.(type) {
+				case quic.Stream:
+					wcnt, err = stream.Write(data)
+				case *net.TCPConn:
+					wcnt, err = stream.Write(data)
+				}
+
+				if err != nil || wcnt != len(data) {
+					loggerTunnel.WithError(err).WithField("count", len(data)).WithField("sent", wcnt).
+						Warn("Send data to QUIC/TCP stream error or send count not match")
+					break
 				}
 
 			}
 
-			var data []byte
-			if udpConnected {
-				data = NewDataFrame(DATA, buf[:cnt])
-			} else {
-				// TODO: sign DATA with remoteNo
-				data = NewDataFrame(DATA, buf[:cnt])
-			}
+		}()
 
-			switch stream := conn.(type) {
-			case quic.Stream:
-				wcnt, err = stream.Write(data)
-			case *net.TCPConn:
-				wcnt, err = stream.Write(data)
-			}
-
-			if err != nil || wcnt != len(data) {
-				loggerTunnel.WithError(err).WithField("count", len(data)).WithField("sent", wcnt).
-					Warn("Send data to QUIC/TCP stream error or send count not match")
-				break
-			}
-
-		}
-	}()
+	}
 
 	<-ch
 

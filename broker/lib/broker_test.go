@@ -208,7 +208,7 @@ func TestUDP(t *testing.T) {
 		}
 
 		for i := 0; i < packageCnt; i++ {
-			n, err := qStream.Write(utils.NewDataFrame(utils.DATA, buf))
+			n, err := qStream.Write(utils.NewDataFrame(utils.DATA, append([]byte{0}, buf...)))
 			if n-3 != utils.TransBufSize/2 || err != nil {
 				//t.Fatal("Error write to quic: ", err, " count ", strconv.Itoa(n))
 			}
@@ -271,7 +271,7 @@ func TestUDP(t *testing.T) {
 				if dataStream.Type() != utils.DATA {
 					t.Error("Not a DATA frame")
 				}
-				readQuicCnt += dataStream.Len()
+				readQuicCnt += dataStream.Len() - 1
 			}
 
 		}
