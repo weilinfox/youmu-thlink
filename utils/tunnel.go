@@ -264,8 +264,12 @@ func (t *Tunnel) Close() {
 
 }
 
+// dataCallback read/write DATA, in udp tunnel, first bit is udp multiplex id
+type dataCallback func([]byte) []byte
+
 // Serve wait for connection and sync data
-func (t *Tunnel) Serve() error {
+// readFunc, writeFunc: see syncUdp
+func (t *Tunnel) Serve(readFunc, writeFunc dataCallback) error {
 
 	switch t.tunnelType {
 	case ListenQuicListenUdp:
@@ -285,7 +289,7 @@ func (t *Tunnel) Serve() error {
 
 		defer quicStream.Close()
 
-		t.syncUdp(quicStream, t.connection1.(*net.UDPConn), false, false)
+		t.syncUdp(quicStream, t.connection1.(*net.UDPConn), readFunc, writeFunc, false, false)
 
 	case ListenTcpListenUdp:
 
@@ -302,15 +306,15 @@ func (t *Tunnel) Serve() error {
 
 		defer tcpConn.Close()
 
-		t.syncUdp(tcpConn, t.connection1.(*net.UDPConn), false, false)
+		t.syncUdp(tcpConn, t.connection1.(*net.UDPConn), readFunc, writeFunc, false, false)
 
 	case DialQuicDialUdp:
 
-		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), true, true)
+		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), readFunc, writeFunc, true, true)
 
 	case DialTcpDialUdp:
 
-		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), true, true)
+		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), readFunc, writeFunc, true, true)
 
 	}
 
@@ -334,9 +338,10 @@ func (t *Tunnel) PingDelay() time.Duration {
 
 // syncUdp sync data between quic connection and udp connection.
 // Support quic.Stream and *net.TCPConn.
+// readFunc, writeFunc: dataCallback of when read and write data into tunnel
 // quicPing: send ping package to avoid quic stream timeout or not;
 // udpConnected: udp is waiting for connection or dial to address
-func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bool, udpConnected bool) {
+func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, writeFunc dataCallback, sendQuicPing, udpConnected bool) {
 
 	switch conn.(type) {
 	case quic.Stream:
@@ -354,6 +359,15 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 
 	var pingTime time.Time
 	ch := make(chan int, int(maxUdpRemoteNo)*2+2)
+
+	if readFunc == nil {
+		readFunc = func(data []byte) []byte {
+			return data
+		}
+	}
+	if writeFunc == nil {
+		writeFunc = readFunc
+	}
 
 	// PING
 	if sendQuicPing {
@@ -433,9 +447,9 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 					if cnt != 0 {
 						switch stream := conn.(type) {
 						case quic.Stream:
-							_, err = stream.Write(NewDataFrame(DATA, append([]byte{id}, buf[:cnt]...)))
+							_, err = stream.Write(NewDataFrame(DATA, writeFunc(append([]byte{id}, buf[:cnt]...))))
 						case *net.TCPConn:
-							_, err = stream.Write(NewDataFrame(DATA, append([]byte{id}, buf[:cnt]...)))
+							_, err = stream.Write(NewDataFrame(DATA, writeFunc(append([]byte{id}, buf[:cnt]...))))
 						}
 
 						if err != nil {
@@ -485,19 +499,22 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 					// first byte of data is 8bit guest id
 					if udpConnected {
 
-						if ch, ok := udpVClients[dataStream.Data()[0]]; ok {
-							ch <- dataStream.Data()[1:]
+						data := readFunc(dataStream.Data())
+						if ch, ok := udpVClients[data[0]]; ok {
+							ch <- data[1:]
 						} else {
 							ch = make(chan []byte, 32)
-							udpVClients[dataStream.Data()[0]] = ch
-							udpVirtualClient(dataStream.Data()[0], ch)
-							ch <- dataStream.Data()[1:]
+							udpVClients[data[0]] = ch
+							udpVirtualClient(data[0], ch)
+							ch <- data[1:]
 						}
 
 					} else if len(udpRemotes) > int(dataStream.Data()[0]) {
-						wcnt, err = udpConn.WriteToUDP(dataStream.Data()[1:], udpRemotes[dataStream.Data()[0]])
-						if err != nil || wcnt != dataStream.Len()-1 {
-							loggerTunnel.WithError(err).WithField("count", dataStream.Len()).WithField("sent", wcnt).
+
+						data := readFunc(dataStream.Data())
+						wcnt, err = udpConn.WriteToUDP(data[1:], udpRemotes[data[0]])
+						if err != nil || wcnt != len(data)-1 {
+							loggerTunnel.WithError(err).WithField("count", len(data)-1).WithField("sent", wcnt).
 								Warn("Send data to connected udp error or send count not match")
 
 							// reconnect
@@ -581,7 +598,7 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 				var data []byte
 
 				// first byte of data is 8bit guest id
-				data = NewDataFrame(DATA, append([]byte{remoteNo}, buf[:cnt]...))
+				data = NewDataFrame(DATA, writeFunc(append([]byte{remoteNo}, buf[:cnt]...)))
 
 				switch stream := conn.(type) {
 				case quic.Stream:

@@ -598,7 +598,7 @@ func handleUdpTunnel(tunnel *utils.Tunnel) {
 	defer logger.Infof("End udp peer %d-%d", port1, port2)
 	defer tunnel.Close()
 
-	err := tunnel.Serve()
+	err := tunnel.Serve(nil, nil)
 	if err != nil {
 		logger.WithError(err).Error("Tunnel serve error")
 	}

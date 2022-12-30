@@ -190,7 +190,7 @@ func (c *Client) Serve() error {
 		return errors.New("already serving")
 	}
 	c.serving = true
-	return c.tunnel.Serve()
+	return c.tunnel.Serve(nil, nil)
 }
 
 // Close stop this tunnel
