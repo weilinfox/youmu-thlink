@@ -2,7 +2,7 @@
 
 通用的方便自搭建的东方联机器。
 
-本质上是个支持 UDP 的端口转发器。所以其实理论上其他联机器也都是通用的（？）
+本质上是个支持 UDP 的端口转发器。尽管理论上其他联机器也都是通用的，观战的实现依旧比较麻烦，参考 [touhou-protocol-docs](https://github.com/delthas/touhou-protocol-docs/blob/master/protocol_123.md) 。
 
 服务端和客户端使用可选的 QUIC 或 TCP 传输，具有较高的网络适应能力；支持 LZW 压缩，在一定程度上节约带宽。
 
@@ -20,7 +20,8 @@
 6. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
 7. 符合习惯的命令行客户端和易用的 gtk3 图形客户端
 8. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
-9. 代码乱七八糟
+9. 代码乱七八糟的，就是说，这个东西，被我写得很没有效率
+10. 旧版本 client 连不上新 broker 也是很常见了
 
 ## TODO
 
@@ -28,9 +29,11 @@
 2. 测试更多作品
 3. 支持 TCP 转发
 
-## 下载
+## 预编译的二进制
 
-从 [release](https://github.com/weilinfox/youmu-thlink/releases) 页面下载。
++ [github release](https://github.com/weilinfox/youmu-thlink/releases)
++ [gitee release](https://gitee.com/weilinfox/youmu-thlink/releases) （如果没有那就是上传失败了）
++ [pling](https://www.pling.com/p/1963595/) （仅 AppImage）
 
 ### Archlinux
 
