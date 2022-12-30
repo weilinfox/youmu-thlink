@@ -148,13 +148,13 @@ func testTunnel(t *testing.T, udpConn *net.UDPConn, port01 int) {
 			cnt, udpAddr, err := udpConn.ReadFromUDP(buf)
 			_ = udpConn.SetReadDeadline(time.Time{})
 			if err != nil {
-				t.Error("Read from udpConn error")
+				t.Error("Read from udpConn error", err)
 			}
 			_ = udpConn.SetWriteDeadline(time.Now().Add(time.Millisecond * 500))
 			cnt1, err := udpConn.WriteToUDP(buf[:cnt], udpAddr)
 			_ = udpConn.SetWriteDeadline(time.Time{})
 			if err != nil {
-				t.Error("Write to udpConn error")
+				t.Error("Write to udpConn error", err)
 			}
 			if cnt != cnt1 {
 				t.Errorf("Write data count not match: %d != %d", cnt, cnt1)
@@ -196,7 +196,7 @@ func testTunnel(t *testing.T, udpConn *net.UDPConn, port01 int) {
 					cnt1, err := udpConn.Read(buf)
 					_ = udpConn.SetReadDeadline(time.Time{})
 					if err != nil {
-						t.Error("Read to tunnel0 error")
+						t.Error("Read from tunnel0 error")
 					}
 					if cnt != cnt1 {
 						t.Errorf("Write data count not match: %d != %d", cnt, cnt1)

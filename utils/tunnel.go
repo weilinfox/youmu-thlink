@@ -353,7 +353,7 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 	udpVClients := make(map[byte]chan []byte) // local virtual client
 
 	var pingTime time.Time
-	ch := make(chan int, 2)
+	ch := make(chan int, int(maxUdpRemoteNo)*2+2)
 
 	// PING
 	if sendQuicPing {
@@ -405,12 +405,11 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 				}()
 
 				for {
-					_, err = myUdpConn.Write(<-msg)
+					_, _ = myUdpConn.Write(<-msg)
 
-					if err != nil {
+					/*if err != nil {
 						loggerTunnel.WithError(err).Warn("Write data to connected udp error")
-						break
-					}
+					}*/
 				}
 
 			}()
@@ -426,8 +425,9 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 				for {
 					cnt, err := myUdpConn.Read(buf)
 					if err != nil {
-						loggerTunnel.WithError(err).Warn("Read data from connected udp error")
-						break
+						// loggerTunnel.WithError(err).Warn("Read data from connected udp error")
+						time.Sleep(time.Millisecond * 100)
+						continue
 					}
 
 					if cnt != 0 {
@@ -437,10 +437,11 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, sendQuicPing bo
 						case *net.TCPConn:
 							_, err = stream.Write(NewDataFrame(DATA, append([]byte{id}, buf[:cnt]...)))
 						}
-					}
-					if err != nil {
-						loggerTunnel.WithError(err).Warn("Write data to tunnel error")
-						break
+
+						if err != nil {
+							loggerTunnel.WithError(err).Warn("Write data to tunnel error")
+							break
+						}
 					}
 				}
 
