@@ -28,7 +28,8 @@ func NewDataFrame(t DataType, b []byte) []byte {
 		return []byte{byte(t), 0x00, 0x00}
 	}
 
-	if t == DATA {
+	// emmm just remove this feature due to performance concern
+	/*if t == DATA {
 		useLZW := true
 
 		// lzw compression
@@ -48,7 +49,7 @@ func NewDataFrame(t DataType, b []byte) []byte {
 		} else {
 			return append([]byte{byte(DATA), byte(len(b) >> 8), byte(len(b))}, b...)
 		}
-	}
+	}*/
 
 	return append([]byte{byte(t), byte(len(b) >> 8), byte(len(b))}, b...)
 }
