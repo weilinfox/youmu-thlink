@@ -28,7 +28,7 @@ func TestQuicTunnel(t *testing.T) {
 	port00, port01 := tunnel0.Ports()
 	defer tunnel0.Close()
 
-	go tunnel0.Serve(nil, nil)
+	go tunnel0.Serve(nil, nil, nil)
 
 	// udpConn
 	t.Log("Setup to quic tunnel udpConn")
@@ -56,7 +56,7 @@ func TestQuicTunnel(t *testing.T) {
 	}
 	defer tunnel1.Close()
 
-	go tunnel1.Serve(nil, nil)
+	go tunnel1.Serve(nil, nil, nil)
 
 	testTunnel(t, udpConn, port01)
 
@@ -79,7 +79,7 @@ func TestTcpTunnel(t *testing.T) {
 	port00, port01 := tunnel0.Ports()
 	defer tunnel0.Close()
 
-	go tunnel0.Serve(nil, nil)
+	go tunnel0.Serve(nil, nil, nil)
 
 	// udpConn
 	t.Log("Setup to tcp tunnel udpConn")
@@ -107,7 +107,7 @@ func TestTcpTunnel(t *testing.T) {
 	}
 	defer tunnel1.Close()
 
-	go tunnel1.Serve(nil, nil)
+	go tunnel1.Serve(nil, nil, nil)
 
 	testTunnel(t, udpConn, port01)
 

@@ -1,7 +1,15 @@
 package client
 
 import (
+	"bytes"
+	"compress/zlib"
+	"github.com/lucas-clemente/quic-go"
 	"github.com/sirupsen/logrus"
+	"github.com/weilinfox/youmu-thlink/utils"
+	"io"
+	"math"
+	"net"
+	"time"
 )
 
 type type123pkg byte
@@ -25,11 +33,26 @@ const (
 	SOKUROLL_SETTINGS_ACK
 )
 
+type data123pkg byte
+
+const (
+	GAME_LOADED data123pkg = iota + 1
+	GAME_LOADED_ACK
+	GAME_INPUT
+	GAME_MATCH
+	GAME_MATCH_ACK
+	GAME_MATCH_REQUEST data123pkg = iota + 3
+	GAME_REPLAY
+	GAME_REPLAY_REQUEST data123pkg = iota + 4
+)
+
 type status123peer byte
 
 const (
 	INACTIVE status123peer = iota
 	SUCCESS
+	BATTLE
+	BATTLE_WAIT_ANOTHER
 )
 
 type spectate123type byte
@@ -41,20 +64,48 @@ const (
 )
 
 type hisoutensokuData struct {
-	PeerAddr    [6]byte  // appear in HELLO
-	TargetAddr  [6]byte  // appear in HELLO
-	GameID      [16]byte // appear in INIT_REQUEST
-	ClientProf  string   // appear in INIT_REQUEST and INIT_SUCCESS
-	HostProf    string   // appear in INIT_SUCCESS
-	Spectator   bool     // appear in INIT_SUCCESS
-	SwrDisabled bool     // appear in INIT_SUCCESS
+	// PeerAddr    [6]byte  // appear in HELLO
+	// TargetAddr  [6]byte  // appear in HELLO
+	// GameID      [16]byte // appear in INIT_REQUEST
+	InitSuccessPkg [81]byte // copy from INIT_SUCCESS
+	ClientProf     string   // parse from INIT_SUCCESS
+	HostProf       string   // parse from INIT_SUCCESS
+	Spectator      bool     // parse from INIT_SUCCESS
+	SwrDisabled    bool     // parse from INIT_SUCCESS
+
+	HostInfo    [45]byte          // parse from HOST_GAME GAME_MATCH
+	ClientInfo  [45]byte          // parse from HOST_GAME GAME_MATCH
+	StageId     byte              // parse from HOST_GAME GAME_MATCH
+	MusicId     byte              // parse from HOST_GAME GAME_MATCH
+	RandomSeeds [4]byte           // parse from HOST_GAME GAME_MATCH
+	MatchId     byte              // parse from HOST_GAME GAME_MATCH
+	ReplayData  map[byte][]uint16 // parse from HOST_GAME GAME_REPLAY
+	ReplayEnd   map[byte]bool     // parse from HOST_GAME GAME_REPLAY
 }
 
-type Hisoutensoku struct {
-	peerId     byte
-	peerStatus status123peer
+func newHisoutensokuData() *hisoutensokuData {
+	return &hisoutensokuData{
+		ReplayData: make(map[byte][]uint16),
+		ReplayEnd:  make(map[byte]bool),
+	}
+}
 
-	peerData map[byte]hisoutensokuData // data record with client id
+type status123req byte
+
+const (
+	INIT status123req = iota
+	SEND
+	SENT0
+	SENT1
+	SEND_AGAIN
+)
+
+type Hisoutensoku struct {
+	peerId       byte              // current host/client peer id (udp mutex id)
+	peerStatus   status123peer     // current peer status
+	peerData     *hisoutensokuData // current peer data record
+	gameId       map[byte][16]byte // game id record
+	repReqStatus status123req      // GAME_REPLAY_REQUEST send status
 }
 
 var logger123 = logrus.WithField("Hisoutensoku", "internal")
@@ -62,8 +113,10 @@ var logger123 = logrus.WithField("Hisoutensoku", "internal")
 // NewHisoutensoku new Hisoutensoku spectating server
 func NewHisoutensoku() *Hisoutensoku {
 	return &Hisoutensoku{
-		peerStatus: INACTIVE,
-		peerData:   make(map[byte]hisoutensokuData),
+		peerStatus:   INACTIVE,
+		peerData:     newHisoutensokuData(),
+		gameId:       make(map[byte][16]byte),
+		repReqStatus: INIT,
 	}
 }
 
@@ -74,69 +127,65 @@ func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 	switch type123pkg(orig[1]) {
 	case INIT_SUCCESS:
 		if len(orig)-1 == 81 {
-			var v hisoutensokuData
-			var ok bool
-			var hprof, cprof string
-			var swrDisabled int
 
-			logger123.Debug("INIT_SUCCESS with spectacle type ", orig[7])
-			if v, ok = h.peerData[orig[0]]; !ok {
-				logger123.Warn("INIT_SUCCESS without HELLO ahead?")
-				v = hisoutensokuData{}
-			}
+			switch spectate123type(orig[6]) {
+			case NOSPECTATE, SPECTATE:
+				// init success
+				h.peerData.Spectator = spectate123type(orig[6]) == SPECTATE
+				for i := 14; i <= 46; i++ {
+					if orig[i] == 0x00 || i == 46 {
+						h.peerData.HostProf = string(orig[14:i])
+						break
+					}
+				}
+				for i := 46; i <= 78; i++ {
+					if orig[i] == 0x00 || i == 78 {
+						h.peerData.ClientProf = string(orig[46:i])
+						break
+					}
+				}
+				h.peerData.SwrDisabled = (int(orig[78]) | int(orig[79])<<8 | int(80)<<16 | int(81)<<24) != 0
 
-			switch spectate123type(orig[7]) {
-			case NOSPECTATE:
-				v.Spectator = false
-			case SPECTATE:
-				v.Spectator = true
+				logger123.Debug("INIT_SUCCESS with host profile ", h.peerData.HostProf, " client profile ",
+					h.peerData.ClientProf, " swr disabled ", h.peerData.SwrDisabled)
+
+				h.peerId = orig[0]
+				h.peerStatus = SUCCESS
+				h.peerData.MatchId = 0
+
+				logger123.Info("Th123 peer init success: spectator=", h.peerData.Spectator)
+
 			case SPECTATE_FOR_SPECTATOR:
 				logger123.Warn("INIT_SUCCESS type SPECTATE_FOR_SPECTATOR appears here?")
 			default:
 				logger123.Warn("INIT_SUCCESS spectacle type cannot recognize")
 			}
 
-			for i := 14; i <= 46; i++ {
-				if orig[i] == 0x00 || i == 46 {
-					hprof = string(orig[14:i])
-					break
-				}
-			}
-			for i := 46; i <= 78; i++ {
-				if orig[i] == 0x00 || i == 78 {
-					cprof = string(orig[46:i])
-					break
-				}
-			}
-			swrDisabled = int(orig[78]) | int(orig[79])<<8 | int(80)<<16 | int(81)<<24
-			logger123.Debug("INIT_SUCCESS with host profile ", hprof, " client profile ", cprof, " swr disabled ", swrDisabled)
-
-			v.HostProf, v.ClientProf, v.SwrDisabled = hprof, cprof, swrDisabled != 0
-
-			h.peerData[orig[0]] = v
-
-			h.peerId = orig[0]
-			h.peerStatus = SUCCESS
-
 		} else {
-			logger123.Debug("INIT_SUCCESS with strange length ", len(orig)-1)
+			logger123.Warn("INIT_SUCCESS with strange length ", len(orig)-1)
 		}
 
 	case QUIT:
 		if len(orig)-1 == 1 {
-			logger123.Debug("QUIT")
+			logger123.Info("Th123 peer quit")
 			if orig[0] == h.peerId {
 				h.peerStatus = INACTIVE
 			}
 		} else {
-			logger123.Debug("QUIT with strange length ", len(orig)-1)
+			logger123.Warn("QUIT with strange length ", len(orig)-1)
 		}
 
 	case CLIENT_GAME:
 		logger123.Warn("CLIENT_GAME should not appear here right? ", orig[1:])
 
 	case HOST_GAME:
-
+		switch data123pkg(orig[2]) {
+		case GAME_LOADED_ACK:
+			if orig[3] == 0x05 {
+				logger123.Info("Th123 battle loaded")
+				h.peerStatus = BATTLE
+			}
+		}
 	}
 
 	return false, orig
@@ -149,67 +198,312 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 	switch type123pkg(orig[1]) {
 	case HELLO:
 		if len(orig)-1 == 37 {
-			if v, ok := h.peerData[orig[0]]; !ok {
-				logger123.Debug("HELLO with data ", orig[4:10], orig[20:26])
-				v = hisoutensokuData{}
-				copy(v.PeerAddr[:], orig[4:10])
-				copy(v.TargetAddr[:], orig[20:26])
-				h.peerData[orig[0]] = v
-			} else {
-				copy(v.PeerAddr[:], orig[4:10])
-				copy(v.TargetAddr[:], orig[20:26])
-				h.peerData[orig[0]] = v
+			if h.peerStatus > SUCCESS && orig[0] != h.peerId {
+				return true, []byte{orig[0], byte(OLLEH)}
 			}
 		} else {
-			logger123.Debug("HELLO with strange length ", len(orig)-1)
+			logger123.Warn("HELLO with strange length ", len(orig)-1)
+		}
+
+	case CHAIN:
+		if len(orig)-1 == 5 {
+			if h.peerStatus > SUCCESS && orig[0] != h.peerId {
+				return true, []byte{orig[0], 4, 4, 0, 0, 0}
+			}
+		} else {
+			logger123.Warn("CHAIN with strange length ", len(orig)-1)
 		}
 
 	case INIT_REQUEST:
 		if len(orig)-1 == 65 {
-			var prof string
-			var ok bool
-			var v hisoutensokuData
 
-			logger123.Debug("INIT_REQUEST with game id ", orig[2:18], " request type is ", orig[26])
-			if v, ok = h.peerData[orig[0]]; !ok {
-				logger123.Warn("INIT_REQUEST without HELLO ahead?")
-				v = hisoutensokuData{}
-			}
+			var gameId [16]byte
 
-			if orig[26] == 0x01 {
-				if orig[27] > 32 {
-					logger123.Warn("INIT_REQUEST profile name too long!")
-				} else {
-					prof = string(orig[28 : 28+orig[27]])
-					logger123.Debug("INIT_REQUEST client profile name is ", prof)
+			copy(gameId[:], orig[2:18])
+			logger123.Debug("INIT_REQUEST with game id ", gameId, " request type is ", orig[26])
+
+			h.gameId[orig[0]] = gameId
+
+			if h.peerStatus > SUCCESS && orig[0] != h.peerId {
+				// from spectator
+				if (orig[26] == 0x00 && h.peerData.Spectator && h.peerData.MatchId == 0) || orig[26] == 0x01 {
+					// replay request but not start or match request
+					logger123.Debug("INIT_REQUEST for game from spectator")
+					return true, []byte{orig[0], byte(INIT_ERROR), 1, 0, 0, 0}
+				} else if orig[26] == 0x00 && !h.peerData.Spectator {
+					// not allow spectator
+					logger123.Info("Th123 not allow spectator")
+					return true, []byte{orig[0], byte(INIT_ERROR), 0, 0, 0, 0}
+				} else if orig[26] == 0x00 && h.peerData.MatchId > 0 {
+					// replay request and match started
+					logger123.Info("Th123 spectacle int request from spectator")
+					return true, append([]byte{orig[0]}, h.peerData.InitSuccessPkg[:]...)
 				}
 			}
 
-			copy(v.GameID[:], orig[2:18])
-			if len(prof) > 0 {
-				v.ClientProf = prof
-			}
-			h.peerData[orig[0]] = v
 		} else {
-			logger123.Debug("INIT_REQUEST with strange length ", len(orig)-1)
+			logger123.Warn("INIT_REQUEST with strange length ", len(orig)-1)
+		}
+
+	case INIT_SUCCESS:
+		if len(orig)-1 == 81 {
+			switch spectate123type(orig[6]) {
+			case SPECTATE_FOR_SPECTATOR:
+				copy(h.peerData.InitSuccessPkg[:], orig[1:])
+				h.repReqStatus = SEND
+				logger123.Info("Th123 spectacle INIT_SUCCESS")
+
+				return false, nil
+			}
+		} else {
+			logger123.Warn("INIT_SUCCESS with strange length ", len(orig)-1)
 		}
 
 	case QUIT:
 		if len(orig)-1 == 1 {
-			logger123.Debug("QUIT")
+			logger123.Info("Th123 peer quit")
 			if orig[0] == h.peerId {
 				h.peerStatus = INACTIVE
+				h.repReqStatus = INIT
+			} else {
+				return false, nil
 			}
 		} else {
-			logger123.Debug("QUIT with strange length ", len(orig)-1)
+			logger123.Warn("QUIT with strange length ", len(orig)-1)
 		}
 
 	case HOST_GAME:
-		logger123.Warn("HOST_GAME should not appear here right? ", orig[1:])
+		switch data123pkg(orig[2]) {
+		case GAME_MATCH:
+			if len(orig)-1 == 99 {
+				if orig[0] == h.peerId {
+					// game match data
+					copy(h.peerData.HostInfo[:], orig[3:48])
+					copy(h.peerData.ClientInfo[:], orig[48:93])
+					h.peerData.StageId = orig[93]
+					h.peerData.MusicId = orig[94]
+					copy(h.peerData.RandomSeeds[:], orig[95:99])
+					h.peerData.MatchId = orig[99]
+					h.peerData.ReplayData[orig[99]] = make([]uint16, 1) // 填充一个 garbage
+					h.peerData.ReplayEnd[orig[99]] = false
+
+					h.repReqStatus = SEND
+
+					logger123.Info("Th123 new match ", orig[99])
+
+					return false, nil
+				}
+			} else if len(orig)-1 != 59 {
+				logger123.Warn("HOST_GAME GAME_MATCH with strange length ", len(orig)-1)
+			}
+
+		case GAME_REPLAY:
+			if orig[0] == h.peerId {
+				// game replay data
+				if len(orig) > 4 && len(orig)-4 == int(orig[3]) {
+					r, err := zlib.NewReader(bytes.NewBuffer(orig[4:]))
+					if err != nil {
+						logger123.WithError(err).Error("Th123 new zlib reader error")
+					} else {
+						ans := make([]byte, utils.TransBufSize)
+						n, err := r.Read(ans)
+						_ = r.Close()
+
+						if err == io.EOF {
+							//   game_inputs_count 60 MAX
+							if n >= 10 && n-10 == int(ans[9])*2 {
+								frameId := int(ans[0]) | int(ans[1])<<8 | int(ans[2])<<16 | int(ans[3])<<24
+								endFrameId := int(ans[4]) | int(ans[5])<<8 | int(ans[6])<<16 | int(ans[7])<<24
+
+								data := h.peerData.ReplayData[ans[8]]
+								getDataLen := len(data) - 1
+								if getDataLen == -1 {
+									logger123.Error("Th123 no such match: ", ans[8])
+								} else if frameId-getDataLen <= int(ans[9]) {
+									newDataLen := frameId - getDataLen
+
+									if newDataLen > 0 {
+										newData := make([]uint16, newDataLen)
+
+										for i := 0; i < newDataLen; i++ {
+											newData[newDataLen-1-i] = uint16(ans[10+i*2])<<8 | uint16(ans[11+i*2])
+										}
+
+										h.peerData.ReplayData[ans[8]] = append(data, newData...)
+
+										if len(h.peerData.ReplayData[ans[8]])-1 != frameId {
+											logger123.Error("Th123 replay data not match after append new data")
+										}
+									}
+
+									if endFrameId != 0 && endFrameId == frameId && !h.peerData.ReplayEnd[ans[8]] {
+										logger123.Info("Th123 match end: ", ans[8])
+										h.peerData.ReplayEnd[ans[8]] = true
+										h.peerStatus = BATTLE_WAIT_ANOTHER
+									}
+
+									h.repReqStatus = SEND
+								} else {
+									logger123.Warn("Replay data package drop: frame id ", frameId, " length ", ans[9])
+								}
+							} else {
+								logger123.Error("Replay data content invalid")
+							}
+						} else {
+							logger123.WithError(err).Error("Zlib decode error")
+						}
+						// fmt.Println(err == io.EOF, err, ans[:n])
+					}
+				} else {
+					logger123.Warn("Th123 replay data invalid")
+				}
+			}
+
+			return false, nil
+		}
 
 	case CLIENT_GAME:
+		switch data123pkg(orig[2]) {
+		case GAME_LOADED_ACK:
+			if orig[3] == 0x05 {
+				logger123.Info("Th123 battle loaded")
+				h.peerStatus = BATTLE
+			}
 
+		case GAME_REPLAY_REQUEST:
+			if len(orig)-1 == 7 {
+
+				// game replay request from spectator
+				frameId := int(orig[3]) | int(orig[4])<<8 | int(orig[5])<<16 | int(orig[6])<<24
+				if frameId < 0 || orig[7] < h.peerData.MatchId {
+					data := []byte{orig[0], byte(HOST_GAME), byte(GAME_MATCH)}
+					data = append(data, h.peerData.HostInfo[:]...)
+					data = append(data, h.peerData.ClientInfo[:]...)
+					data = append(data, h.peerData.StageId)
+					data = append(data, h.peerData.MusicId)
+					data = append(data, h.peerData.RandomSeeds[:]...)
+					data = append(data, h.peerData.MatchId)
+
+					logger123.Debug("GAME_REPLAY_REQUEST reply with GAME_MATCH")
+
+					return true, data
+
+				} else if orig[7] == h.peerData.MatchId {
+
+					data := []byte{orig[0], byte(HOST_GAME), byte(GAME_REPLAY)}
+
+					// replay data
+					repData := h.peerData.ReplayData[h.peerData.MatchId]
+					endFrameId := len(repData) - 1
+					sendFrameId := int(math.Min(float64(endFrameId), float64(frameId+60)))
+					var gameInput []byte
+					if frameId <= endFrameId {
+						// send 60 max
+						for i := sendFrameId; i > frameId; i-- {
+							gameInput = append(gameInput, []byte{byte(repData[i] >> 8), byte(repData[i])}...)
+						}
+					}
+					if len(gameInput)%4 != 0 {
+						logger123.Warn("Th123 game input is not time of 4 ?")
+					}
+
+					// append addition data (frameId endFrameId matchId inputCount inputs)
+					gameInput = append([]byte{h.peerData.MatchId, byte(len(gameInput) >> 1)}, gameInput...)
+					if h.peerData.ReplayEnd[h.peerData.MatchId] {
+						gameInput = append([]byte{byte(endFrameId), byte(endFrameId >> 8), byte(endFrameId >> 16), byte(endFrameId >> 24)}, gameInput...)
+					} else {
+						gameInput = append([]byte{0, 0, 0, 0}, gameInput...)
+					}
+					gameInput = append([]byte{byte(sendFrameId), byte(sendFrameId >> 8), byte(sendFrameId >> 16), byte(sendFrameId >> 24)}, gameInput...)
+
+					// zlib compress
+					var zlibData bytes.Buffer
+					zlibw := zlib.NewWriter(&zlibData)
+					_, err := zlibw.Write(gameInput)
+					if err != nil {
+						logger123.WithError(err).Error("Th123 zlib compress error")
+					}
+					_ = zlibw.Close()
+
+					// make data (0x09 size data)
+					data = append(data, byte(zlibData.Len()))
+					data = append(data, zlibData.Bytes()...)
+
+					if endFrameId == sendFrameId && h.peerStatus == INACTIVE {
+						// let spectator quit
+						logger123.Info("Th123 quit spectator")
+						return true, []byte{orig[0], byte(QUIT)}
+					}
+					return true, data
+
+				}
+			} else {
+				logger123.Warn("CLIENT_GAME GAME_REPLAY_REQUEST with strange length ", len(orig)-1)
+			}
+
+			return false, nil
+		}
 	}
 
 	return false, orig
+}
+
+func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
+	logger123.Info("Th123 plugin goroutine start")
+	defer logger123.Info("Th123 plugin goroutine quit")
+
+	for {
+		if h.peerStatus == BATTLE {
+			switch h.repReqStatus {
+			case INIT:
+				if h.peerData.Spectator {
+					gameId := h.gameId[h.peerId]
+					requestData := append([]byte{h.peerId, byte(INIT_REQUEST)}, gameId[:]...) // INIT_REQUEST and game id
+					requestData = append(requestData, make([]byte, 8)...)                     // garbage
+					requestData = append(requestData, 0x00)                                   // spectacle request
+					requestData = append(requestData, 0x00)                                   //  data length 0
+					requestData = append(requestData, make([]byte, 38)...)                    // make it 65 bytes long
+
+					var err error
+					switch conn := tunnelConn.(type) {
+					case quic.Stream:
+						_, err = conn.Write(utils.NewDataFrame(utils.DATA, requestData))
+					case *net.TCPConn:
+						_, err = conn.Write(utils.NewDataFrame(utils.DATA, requestData))
+					}
+					if err != nil {
+						logger123.WithError(err).Error("Th123 send INIT_REQUEST error")
+						break
+					}
+					logger123.Info("Th123 send spectacle INIT_REQUEST")
+				}
+
+			case SEND, SEND_AGAIN:
+				getId := len(h.peerData.ReplayData[h.peerData.MatchId]) - 1
+
+				requestData := []byte{h.peerId, byte(CLIENT_GAME), byte(GAME_REPLAY_REQUEST),
+					byte(getId), byte(getId >> 8), byte(getId >> 16), byte(getId >> 24), h.peerData.MatchId}
+
+				var err error
+				switch conn := tunnelConn.(type) {
+				case quic.Stream:
+					_, err = conn.Write(utils.NewDataFrame(utils.DATA, requestData))
+				case *net.TCPConn:
+					_, err = conn.Write(utils.NewDataFrame(utils.DATA, requestData))
+				}
+				if err != nil {
+					logger123.WithError(err).Error("Th123 send GAME_REPLAY_REQUEST error")
+					break
+				}
+
+				h.repReqStatus = SENT0
+
+			case SENT0, SENT1:
+				h.repReqStatus++
+			}
+		}
+
+		// 15 request per second
+		time.Sleep(time.Millisecond * 66)
+	}
 }

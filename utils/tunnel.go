@@ -264,12 +264,15 @@ func (t *Tunnel) Close() {
 
 }
 
-// DataCallback read/write DATA, in udp tunnel, first bit is udp multiplex id
-type DataCallback func([]byte) (bool, []byte)
+// PluginCallback read/write DATA, in udp tunnel, first bit is udp multiplex id
+type PluginCallback func([]byte) (bool, []byte)
+
+// PluginGoroutine goroutine for plugin
+type PluginGoroutine func(interface{}, *net.UDPConn)
 
 // Serve wait for connection and sync data
 // readFunc, writeFunc: see syncUdp
-func (t *Tunnel) Serve(readFunc, writeFunc DataCallback) error {
+func (t *Tunnel) Serve(readFunc, writeFunc PluginCallback, plRoutine PluginGoroutine) error {
 
 	switch t.tunnelType {
 	case ListenQuicListenUdp:
@@ -289,7 +292,7 @@ func (t *Tunnel) Serve(readFunc, writeFunc DataCallback) error {
 
 		defer quicStream.Close()
 
-		t.syncUdp(quicStream, t.connection1.(*net.UDPConn), readFunc, writeFunc, false, false)
+		t.syncUdp(quicStream, t.connection1.(*net.UDPConn), readFunc, writeFunc, plRoutine, false, false)
 
 	case ListenTcpListenUdp:
 
@@ -306,15 +309,15 @@ func (t *Tunnel) Serve(readFunc, writeFunc DataCallback) error {
 
 		defer tcpConn.Close()
 
-		t.syncUdp(tcpConn, t.connection1.(*net.UDPConn), readFunc, writeFunc, false, false)
+		t.syncUdp(tcpConn, t.connection1.(*net.UDPConn), readFunc, writeFunc, plRoutine, false, false)
 
 	case DialQuicDialUdp:
 
-		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), readFunc, writeFunc, true, true)
+		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), readFunc, writeFunc, plRoutine, true, true)
 
 	case DialTcpDialUdp:
 
-		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), readFunc, writeFunc, true, true)
+		t.syncUdp(t.connection0, t.connection1.(*net.UDPConn), readFunc, writeFunc, plRoutine, true, true)
 
 	}
 
@@ -338,10 +341,10 @@ func (t *Tunnel) PingDelay() time.Duration {
 
 // syncUdp sync data between quic connection and udp connection.
 // Support quic.Stream and *net.TCPConn.
-// readFunc, writeFunc: DataCallback of when read and write data into tunnel
+// readFunc, writeFunc: PluginCallback of when read and write data into tunnel
 // quicPing: send ping package to avoid quic stream timeout or not;
 // udpConnected: udp is waiting for connection or dial to address
-func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, writeFunc DataCallback, sendQuicPing, udpConnected bool) {
+func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, writeFunc PluginCallback, plRoutine PluginGoroutine, sendQuicPing, udpConnected bool) {
 
 	switch conn.(type) {
 	case quic.Stream:
@@ -369,6 +372,10 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 		writeFunc = func(data []byte) (bool, []byte) {
 			return false, data
 		}
+	}
+
+	if plRoutine != nil {
+		go plRoutine(conn, udpConn)
 	}
 
 	// PING

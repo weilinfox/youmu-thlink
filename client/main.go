@@ -83,9 +83,9 @@ func main() {
 	case 123:
 		logger.Info("Append th12.3 hisoutensoku plugin")
 		h := client.NewHisoutensoku()
-		err = c.Serve(h.ReadFunc, h.WriteFunc)
+		err = c.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc)
 	default:
-		err = c.Serve(nil, nil)
+		err = c.Serve(nil, nil, nil)
 	}
 	if err != nil {
 		logger.WithError(err).Fatal("Serve client error")

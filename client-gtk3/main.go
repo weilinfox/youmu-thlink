@@ -273,6 +273,45 @@ func onAppActivate(app *gtk.Application) {
 	protoRadioBox.Add(protoRadioQuic)
 	protoRadioBox.SetHAlign(gtk.ALIGN_CENTER)
 
+	// plugin choose
+	pluginNum := 0
+
+	pluginLabel, err := gtk.LabelNew("Plugin")
+	if err != nil {
+		logger.WithError(err).Fatal("Could not create plugin label.")
+	}
+	pluginLabel.SetHAlign(gtk.ALIGN_START)
+
+	pluginRadioBox, err := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 50)
+	if err != nil {
+		logger.WithError(err).Fatal("Could not create plugin radio box.")
+	}
+	pluginRadioOff, err := gtk.RadioButtonNewWithLabelFromWidget(nil, "Off")
+	if err != nil {
+		logger.WithError(err).Fatal("Could not create plugin radio button Off.")
+	}
+	pluginRadioOff.Connect("toggled", func(r *gtk.RadioButton) {
+		if r.GetActive() {
+			pluginNum = 0
+			clientStatus.userConfigChange = true
+			logger.Debug("Plugin change to ", pluginNum)
+		}
+	})
+	pluginRadioBox.Add(pluginRadioOff)
+	pluginRadio123, err := gtk.RadioButtonNewWithLabelFromWidget(pluginRadioOff, "th123")
+	if err != nil {
+		logger.WithError(err).Fatal("Could not create plugin radio button 123.")
+	}
+	pluginRadio123.Connect("toggled", func(r *gtk.RadioButton) {
+		if r.GetActive() {
+			pluginNum = 123
+			clientStatus.userConfigChange = true
+			logger.Debug("Plugin change to ", pluginNum)
+		}
+	})
+	pluginRadioBox.Add(pluginRadio123)
+	pluginRadioBox.SetHAlign(gtk.ALIGN_CENTER)
+
 	// peer address label
 	peerLabel, err := gtk.LabelNew("Peer IP")
 	if err != nil {
@@ -322,7 +361,16 @@ func onAppActivate(app *gtk.Application) {
 		addrLabel.SetText(clientStatus.client.PeerHost())
 
 		go func() {
-			err := clientStatus.client.Serve()
+			var err error
+			switch pluginNum {
+			case 0:
+				err = clientStatus.client.Serve(nil, nil, nil)
+
+			case 123:
+				logger.Info("Append th12.3 hisoutensoku plugin")
+				h := client.NewHisoutensoku()
+				err = clientStatus.client.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc)
+			}
 			if err != nil {
 				logger.WithError(err).Error("Connect failed")
 				glib.IdleAdd(func() bool {
@@ -391,6 +439,7 @@ func onAppActivate(app *gtk.Application) {
 		serverEntry.SetText(client.DefaultServerHost)
 		localPortEntry.SetText(strconv.Itoa(client.DefaultLocalPort))
 		protoRadioTcp.SetActive(true)
+		pluginRadioOff.SetActive(true)
 	})
 	app.AddAction(aReset)
 
@@ -539,6 +588,8 @@ func onAppActivate(app *gtk.Application) {
 	mainGrid.Add(setupLabel)
 	mainGrid.Add(localPortBox)
 	mainGrid.Add(protoRadioBox)
+	mainGrid.Add(pluginLabel)
+	mainGrid.Add(pluginRadioBox)
 	mainGrid.Add(peerLabel)
 	mainGrid.Add(addrLabel)
 	mainGrid.Add(ctlBtnBox)
@@ -552,7 +603,7 @@ func onAppActivate(app *gtk.Application) {
 	}
 	appWindow.Add(mainGrid)
 	appWindow.SetResizable(false)
-	appWindow.SetDefaultSize(240, 320)
+	appWindow.SetDefaultSize(300, 410)
 	appWindow.SetShowMenubar(true)
 	appWindow.ShowAll()
 

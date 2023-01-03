@@ -234,12 +234,12 @@ func (c *Client) Connect() error {
 	return nil
 }
 
-func (c *Client) Serve(readFunc, writeFunc utils.DataCallback) error {
+func (c *Client) Serve(readFunc, writeFunc utils.PluginCallback, plRoutine utils.PluginGoroutine) error {
 	if c.serving {
 		return errors.New("already serving")
 	}
 	c.serving = true
-	return c.tunnel.Serve(readFunc, writeFunc)
+	return c.tunnel.Serve(readFunc, writeFunc, plRoutine)
 }
 
 // Close stop this tunnel
