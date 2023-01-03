@@ -15,8 +15,8 @@ import (
 
 const (
 	// TunnelVersion tunnel compatible version
-	TunnelVersion = 1
-	Version       = "0.0.8"
+	TunnelVersion byte = 2
+	Version            = "0.0.8"
 )
 
 // Tunnel just like a bidirectional pipe
@@ -265,7 +265,7 @@ func (t *Tunnel) Close() {
 }
 
 // dataCallback read/write DATA, in udp tunnel, first bit is udp multiplex id
-type dataCallback func([]byte) []byte
+type dataCallback func([]byte) (bool, []byte)
 
 // Serve wait for connection and sync data
 // readFunc, writeFunc: see syncUdp
@@ -361,13 +361,13 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 	ch := make(chan int, int(maxUdpRemoteNo)*2+2)
 
 	if readFunc == nil {
-		readFunc = func(data []byte) []byte {
-			return data
+		readFunc = func(data []byte) (bool, []byte) {
+			return false, data
 		}
 	}
 	if writeFunc == nil {
-		writeFunc = func(data []byte) []byte {
-			return data
+		writeFunc = func(data []byte) (bool, []byte) {
+			return false, data
 		}
 	}
 
@@ -447,18 +447,22 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 					}
 
 					if cnt != 0 {
-						data := writeFunc(append([]byte{id}, buf[:cnt]...))
+						reply, data := writeFunc(append([]byte{id}, buf[:cnt]...))
 						if data != nil && len(data) > 0 {
-							switch stream := conn.(type) {
-							case quic.Stream:
-								_, err = stream.Write(NewDataFrame(DATA, data))
-							case *net.TCPConn:
-								_, err = stream.Write(NewDataFrame(DATA, data))
-							}
+							if reply {
+								_, _ = myUdpConn.Write(data[1:])
+							} else {
+								switch stream := conn.(type) {
+								case quic.Stream:
+									_, err = stream.Write(NewDataFrame(DATA, data))
+								case *net.TCPConn:
+									_, err = stream.Write(NewDataFrame(DATA, data))
+								}
 
-							if err != nil {
-								loggerTunnel.WithError(err).Warn("Write data to tunnel error")
-								break
+								if err != nil {
+									loggerTunnel.WithError(err).Warn("Write data to tunnel error")
+									break
+								}
 							}
 						}
 					}
@@ -504,32 +508,58 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 					// first byte of data is 8bit guest id
 					if udpConnected {
 
-						data := readFunc(dataStream.Data())
+						reply, data := readFunc(dataStream.Data())
 						if data != nil && len(data) > 0 {
-							if ch, ok := udpVClients[data[0]]; ok {
-								ch <- data[1:]
+							if reply {
+								switch stream := conn.(type) {
+								case quic.Stream:
+									_, err = stream.Write(NewDataFrame(DATA, data))
+								case *net.TCPConn:
+									_, err = stream.Write(NewDataFrame(DATA, data))
+								}
+								if err != nil {
+									loggerTunnel.Error("Send reply package failed")
+									break
+								}
 							} else {
-								ch = make(chan []byte, 32)
-								udpVClients[data[0]] = ch
-								udpVirtualClient(data[0], ch)
-								ch <- data[1:]
+								if ch, ok := udpVClients[data[0]]; ok {
+									ch <- data[1:]
+								} else {
+									ch = make(chan []byte, 32)
+									udpVClients[data[0]] = ch
+									udpVirtualClient(data[0], ch)
+									ch <- data[1:]
+								}
 							}
 						}
 
 					} else if len(udpRemotes) > int(dataStream.Data()[0]) {
 
-						data := readFunc(dataStream.Data())
+						reply, data := readFunc(dataStream.Data())
 						if data != nil && len(data) > 0 {
-							wcnt, err = udpConn.WriteToUDP(data[1:], udpRemotes[data[0]])
-							if err != nil || wcnt != len(data)-1 {
-								loggerTunnel.WithError(err).WithField("count", len(data)-1).WithField("sent", wcnt).
-									Warn("Send data to connected udp error or send count not match")
+							if reply {
+								switch stream := conn.(type) {
+								case quic.Stream:
+									_, err = stream.Write(NewDataFrame(DATA, data))
+								case *net.TCPConn:
+									_, err = stream.Write(NewDataFrame(DATA, data))
+								}
+								if err != nil {
+									loggerTunnel.Error("Send reply package failed")
+									break
+								}
+							} else {
+								wcnt, err = udpConn.WriteToUDP(data[1:], udpRemotes[data[0]])
+								if err != nil || wcnt != len(data)-1 {
+									loggerTunnel.WithError(err).WithField("count", len(data)-1).WithField("sent", wcnt).
+										Warn("Send data to connected udp error or send count not match")
 
-								// reconnect
-								// localAddr := udpConn.LocalAddr()
-								// udpLocalAddr, _ := net.ResolveUDPAddr("udp", localAddr.String())
-								// _ = udpConn.Close()
-								// udpConn, _ = net.DialUDP("udp", nil, udpLocalAddr)
+									// reconnect
+									// localAddr := udpConn.LocalAddr()
+									// udpLocalAddr, _ := net.ResolveUDPAddr("udp", localAddr.String())
+									// _ = udpConn.Close()
+									// udpConn, _ = net.DialUDP("udp", nil, udpLocalAddr)
+								}
 							}
 						}
 
@@ -606,23 +636,28 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 				}
 
 				var data []byte
+				var reply bool
 
 				// first byte of data is 8bit guest id
-				data = writeFunc(append([]byte{remoteNo}, buf[:cnt]...))
+				reply, data = writeFunc(append([]byte{remoteNo}, buf[:cnt]...))
 				if data != nil && len(data) > 0 {
-					data = NewDataFrame(DATA, data)
+					if reply {
+						_, _ = udpConn.WriteToUDP(data[1:], udpAddr)
+					} else {
+						data = NewDataFrame(DATA, data)
 
-					switch stream := conn.(type) {
-					case quic.Stream:
-						wcnt, err = stream.Write(data)
-					case *net.TCPConn:
-						wcnt, err = stream.Write(data)
-					}
+						switch stream := conn.(type) {
+						case quic.Stream:
+							wcnt, err = stream.Write(data)
+						case *net.TCPConn:
+							wcnt, err = stream.Write(data)
+						}
 
-					if err != nil || wcnt != len(data) {
-						loggerTunnel.WithError(err).WithField("count", len(data)).WithField("sent", wcnt).
-							Warn("Send data to QUIC/TCP stream error or send count not match")
-						break
+						if err != nil || wcnt != len(data) {
+							loggerTunnel.WithError(err).WithField("count", len(data)).WithField("sent", wcnt).
+								Warn("Send data to QUIC/TCP stream error or send count not match")
+							break
+						}
 					}
 				}
 
