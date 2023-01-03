@@ -3,9 +3,10 @@ package client
 import (
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"net"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type type123pkg byte
