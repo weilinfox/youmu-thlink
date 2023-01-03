@@ -17,22 +17,22 @@
 3. 支持使用 UDP 进行联机的东方作品
 4. 可配置的监听端口和服务器地址，方便自搭建
 5. 支持去中心化的多服务器结构
-6. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
-7. 符合习惯的命令行客户端和易用的 gtk3 图形客户端
-8. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
-9. 代码乱七八糟的，就是说，这个东西，被我写得很没有效率
-10. 旧版本 client 连不上新 broker 也是很常见了
+6. 支持观战，观战支持的原理见 [hisoutensoku-spectacle](https://github.com/weilinfox/youmu-hisoutensoku-spectacle)
+7. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
+8. 符合习惯的命令行客户端和易用的 gtk3 图形客户端
+9. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
+10. 代码乱七八糟的，就是说，这个东西，被我写得很没有效率
+11. 旧版本 client 连不上新 broker 也是很常见了
 
 ## TODO
 
-1. 观战支持
-2. 测试更多作品
-3. 支持 TCP 转发
+1. 测试更多作品
+2. 支持 TCP 转发
 
 ## 预编译的二进制
 
 + [github release](https://github.com/weilinfox/youmu-thlink/releases)
-+ [gitee release](https://gitee.com/weilinfox/youmu-thlink/releases) （如果没有那就是上传失败了）
++ [gitee release](https://gitee.com/weilinfox/youmu-thlink/releases) （镜像，如果有文件缺失那就是上传失败了）
 + [pling](https://www.pling.com/p/1963595/) （仅 AppImage）
 
 ### Archlinux

@@ -46,10 +46,10 @@ const (
 	GAME_REPLAY_REQUEST data123pkg = iota + 4
 )
 
-type status123peer byte
+type Status123peer byte
 
 const (
-	INACTIVE status123peer = iota
+	INACTIVE Status123peer = iota
 	SUCCESS
 	BATTLE
 	BATTLE_WAIT_ANOTHER
@@ -102,10 +102,12 @@ const (
 
 type Hisoutensoku struct {
 	peerId       byte              // current host/client peer id (udp mutex id)
-	peerStatus   status123peer     // current peer status
+	PeerStatus   Status123peer     // current peer status
 	peerData     *hisoutensokuData // current peer data record
 	gameId       map[byte][16]byte // game id record
 	repReqStatus status123req      // GAME_REPLAY_REQUEST send status
+	repReqTime   time.Time         // request send time
+	RepReqDelay  time.Duration     // delay between GAME_REPLAY_REQUEST and GAME_REPLAY package
 }
 
 var logger123 = logrus.WithField("Hisoutensoku", "internal")
@@ -113,10 +115,11 @@ var logger123 = logrus.WithField("Hisoutensoku", "internal")
 // NewHisoutensoku new Hisoutensoku spectating server
 func NewHisoutensoku() *Hisoutensoku {
 	return &Hisoutensoku{
-		peerStatus:   INACTIVE,
+		PeerStatus:   INACTIVE,
 		peerData:     newHisoutensokuData(),
 		gameId:       make(map[byte][16]byte),
 		repReqStatus: INIT,
+		RepReqDelay:  time.Second,
 	}
 }
 
@@ -150,7 +153,7 @@ func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 					h.peerData.ClientProf, " swr disabled ", h.peerData.SwrDisabled)
 
 				h.peerId = orig[0]
-				h.peerStatus = SUCCESS
+				h.PeerStatus = SUCCESS
 				h.peerData.MatchId = 0
 
 				logger123.Info("Th123 peer init success: spectator=", h.peerData.Spectator)
@@ -169,7 +172,7 @@ func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 		if len(orig)-1 == 1 {
 			logger123.Info("Th123 peer quit")
 			if orig[0] == h.peerId {
-				h.peerStatus = INACTIVE
+				h.PeerStatus = INACTIVE
 			}
 		} else {
 			logger123.Warn("QUIT with strange length ", len(orig)-1)
@@ -183,7 +186,7 @@ func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 		case GAME_LOADED_ACK:
 			if orig[3] == 0x05 {
 				logger123.Info("Th123 battle loaded")
-				h.peerStatus = BATTLE
+				h.PeerStatus = BATTLE
 			}
 		}
 	}
@@ -198,7 +201,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 	switch type123pkg(orig[1]) {
 	case HELLO:
 		if len(orig)-1 == 37 {
-			if h.peerStatus > SUCCESS && orig[0] != h.peerId {
+			if h.PeerStatus > SUCCESS && orig[0] != h.peerId {
 				return true, []byte{orig[0], byte(OLLEH)}
 			}
 		} else {
@@ -207,7 +210,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 
 	case CHAIN:
 		if len(orig)-1 == 5 {
-			if h.peerStatus > SUCCESS && orig[0] != h.peerId {
+			if h.PeerStatus > SUCCESS && orig[0] != h.peerId {
 				return true, []byte{orig[0], 4, 4, 0, 0, 0}
 			}
 		} else {
@@ -224,7 +227,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 
 			h.gameId[orig[0]] = gameId
 
-			if h.peerStatus > SUCCESS && orig[0] != h.peerId {
+			if h.PeerStatus > SUCCESS && orig[0] != h.peerId {
 				// from spectator
 				if (orig[26] == 0x00 && h.peerData.Spectator && h.peerData.MatchId == 0) || orig[26] == 0x01 {
 					// replay request but not start or match request
@@ -263,7 +266,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 		if len(orig)-1 == 1 {
 			logger123.Info("Th123 peer quit")
 			if orig[0] == h.peerId {
-				h.peerStatus = INACTIVE
+				h.PeerStatus = INACTIVE
 				h.repReqStatus = INIT
 			} else {
 				return false, nil
@@ -301,6 +304,8 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 			if orig[0] == h.peerId {
 				// game replay data
 				if len(orig) > 4 && len(orig)-4 == int(orig[3]) {
+					timeDelay := time.Now().Sub(h.repReqTime)
+
 					r, err := zlib.NewReader(bytes.NewBuffer(orig[4:]))
 					if err != nil {
 						logger123.WithError(err).Error("Th123 new zlib reader error")
@@ -339,9 +344,11 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 									if endFrameId != 0 && endFrameId == frameId && !h.peerData.ReplayEnd[ans[8]] {
 										logger123.Info("Th123 match end: ", ans[8])
 										h.peerData.ReplayEnd[ans[8]] = true
-										h.peerStatus = BATTLE_WAIT_ANOTHER
+										h.PeerStatus = BATTLE_WAIT_ANOTHER
 									}
 
+									h.repReqTime = time.Time{}
+									h.RepReqDelay = timeDelay
 									h.repReqStatus = SEND
 								} else {
 									logger123.Warn("Replay data package drop: frame id ", frameId, " length ", ans[9])
@@ -367,7 +374,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 		case GAME_LOADED_ACK:
 			if orig[3] == 0x05 {
 				logger123.Info("Th123 battle loaded")
-				h.peerStatus = BATTLE
+				h.PeerStatus = BATTLE
 			}
 
 		case GAME_REPLAY_REQUEST:
@@ -429,7 +436,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 					data = append(data, byte(zlibData.Len()))
 					data = append(data, zlibData.Bytes()...)
 
-					if endFrameId == sendFrameId && h.peerStatus == INACTIVE {
+					if endFrameId == sendFrameId && h.PeerStatus == INACTIVE {
 						// let spectator quit
 						logger123.Info("Th123 quit spectator")
 						return true, []byte{orig[0], byte(QUIT)}
@@ -453,7 +460,7 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 	defer logger123.Info("Th123 plugin goroutine quit")
 
 	for {
-		if h.peerStatus == BATTLE {
+		if h.PeerStatus == BATTLE {
 			switch h.repReqStatus {
 			case INIT:
 				if h.peerData.Spectator {
@@ -483,6 +490,8 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 
 				requestData := []byte{h.peerId, byte(CLIENT_GAME), byte(GAME_REPLAY_REQUEST),
 					byte(getId), byte(getId >> 8), byte(getId >> 16), byte(getId >> 24), h.peerData.MatchId}
+
+				h.repReqTime = time.Now()
 
 				var err error
 				switch conn := tunnelConn.(type) {

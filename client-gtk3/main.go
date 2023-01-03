@@ -28,7 +28,12 @@ type Status struct {
 
 	userConfigChange bool
 
-	client *client.Client
+	client    *client.Client
+	plugin    interface{}
+	pluginNum int
+
+	brokerTVersion byte
+	brokerVersion  string
 }
 
 // clientStatus all of this client-gui
@@ -37,6 +42,8 @@ var clientStatus = Status{
 	serverHost:       client.DefaultServerHost,
 	tunnelType:       client.DefaultTunnelType,
 	client:           client.NewWithDefault(),
+	plugin:           nil,
+	pluginNum:        0,
 	userConfigChange: false,
 }
 
@@ -75,6 +82,8 @@ func onAppActivate(app *gtk.Application) {
 		logger.Debug("Already running")
 		return
 	}
+
+	clientStatus.brokerTVersion, clientStatus.brokerVersion = clientStatus.client.BrokerVersion()
 
 	appWindow, err = gtk.ApplicationWindowNew(app)
 	if err != nil {
@@ -274,8 +283,6 @@ func onAppActivate(app *gtk.Application) {
 	protoRadioBox.SetHAlign(gtk.ALIGN_CENTER)
 
 	// plugin choose
-	pluginNum := 0
-
 	pluginLabel, err := gtk.LabelNew("Plugin")
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create plugin label.")
@@ -292,9 +299,9 @@ func onAppActivate(app *gtk.Application) {
 	}
 	pluginRadioOff.Connect("toggled", func(r *gtk.RadioButton) {
 		if r.GetActive() {
-			pluginNum = 0
+			clientStatus.pluginNum = 0
 			clientStatus.userConfigChange = true
-			logger.Debug("Plugin change to ", pluginNum)
+			logger.Debug("Plugin change to 0")
 		}
 	})
 	pluginRadioBox.Add(pluginRadioOff)
@@ -304,9 +311,9 @@ func onAppActivate(app *gtk.Application) {
 	}
 	pluginRadio123.Connect("toggled", func(r *gtk.RadioButton) {
 		if r.GetActive() {
-			pluginNum = 123
+			clientStatus.pluginNum = 123
 			clientStatus.userConfigChange = true
-			logger.Debug("Plugin change to ", pluginNum)
+			logger.Debug("Plugin change to 123")
 		}
 	})
 	pluginRadioBox.Add(pluginRadio123)
@@ -315,7 +322,7 @@ func onAppActivate(app *gtk.Application) {
 	// peer address label
 	peerLabel, err := gtk.LabelNew("Peer IP")
 	if err != nil {
-		logger.WithError(err).Fatal("Could not create button.")
+		logger.WithError(err).Fatal("Could not create peer address label.")
 	}
 	peerLabel.SetMarginTop(10)
 	peerLabel.SetHAlign(gtk.ALIGN_START)
@@ -323,7 +330,7 @@ func onAppActivate(app *gtk.Application) {
 	// peer ip label
 	addrLabel, err := gtk.LabelNew("No tunnel established")
 	if err != nil {
-		logger.WithError(err).Fatal("Could not create button.")
+		logger.WithError(err).Fatal("Could not create peer ip label.")
 	}
 	addrLabel.SetHExpand(true)
 
@@ -362,14 +369,18 @@ func onAppActivate(app *gtk.Application) {
 
 		go func() {
 			var err error
-			switch pluginNum {
-			case 0:
-				err = clientStatus.client.Serve(nil, nil, nil)
 
+			switch clientStatus.pluginNum {
 			case 123:
 				logger.Info("Append th12.3 hisoutensoku plugin")
 				h := client.NewHisoutensoku()
+				clientStatus.plugin = h
 				err = clientStatus.client.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc)
+
+			default:
+				clientStatus.plugin = nil
+				err = clientStatus.client.Serve(nil, nil, nil)
+
 			}
 			if err != nil {
 				logger.WithError(err).Error("Connect failed")
@@ -378,6 +389,7 @@ func onAppActivate(app *gtk.Application) {
 					return false
 				})
 			}
+
 		}()
 
 		logger.Debug("Connect")
@@ -432,6 +444,14 @@ func onAppActivate(app *gtk.Application) {
 	ctlBtnBox.SetHAlign(gtk.ALIGN_FILL)
 	ctlBtnBox.SetHExpand(true)
 	ctlBtnBox.SetMarginTop(10)
+
+	// client status label
+	statusLabel, err := gtk.LabelNew("Initializing")
+	if err != nil {
+		logger.WithError(err).Fatal("Could not create status label.")
+	}
+	statusLabel.SetMarginTop(10)
+	statusLabel.SetHAlign(gtk.ALIGN_START)
 
 	// reset action
 	aReset := glib.SimpleActionNew("reset", nil)
@@ -593,6 +613,7 @@ func onAppActivate(app *gtk.Application) {
 	mainGrid.Add(peerLabel)
 	mainGrid.Add(addrLabel)
 	mainGrid.Add(ctlBtnBox)
+	mainGrid.Add(statusLabel)
 
 	// tray icon
 	onStatusIconSetup(appWindow)
@@ -603,7 +624,7 @@ func onAppActivate(app *gtk.Application) {
 	}
 	appWindow.Add(mainGrid)
 	appWindow.SetResizable(false)
-	appWindow.SetDefaultSize(300, 410)
+	appWindow.SetDefaultSize(320, 450)
 	appWindow.SetShowMenubar(true)
 	appWindow.ShowAll()
 
@@ -620,6 +641,71 @@ func onAppActivate(app *gtk.Application) {
 				}
 				return false
 			})
+		}
+	}()
+
+	// auto update status label
+	go func() {
+		for {
+
+			if clientStatus.client.Serving() {
+				if clientStatus.plugin != nil {
+					switch p := clientStatus.plugin.(type) {
+					case *client.Hisoutensoku:
+						switch p.PeerStatus {
+						case client.SUCCESS:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText("th12.3 game loaded")
+								return false
+							})
+						case client.BATTLE:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText("th12.3 game ongoing with delay " +
+									fmt.Sprintf("%.2f ms", float64(p.RepReqDelay.Nanoseconds())/2000000))
+								return false
+							})
+						case client.BATTLE_WAIT_ANOTHER:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText("th12.3 game waiting")
+								return false
+							})
+						default:
+							glib.IdleAdd(func() bool {
+								tv, v := clientStatus.client.Version()
+								if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
+									statusLabel.SetText("th12.3 game not started")
+								} else {
+									statusLabel.SetText("Plugin alert! Server is v" + clientStatus.brokerVersion + "-" + strconv.Itoa(int(clientStatus.brokerTVersion)))
+								}
+								return false
+							})
+						}
+					}
+				} else {
+					glib.IdleAdd(func() bool {
+						tv, v := clientStatus.client.Version()
+						if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
+							statusLabel.SetText("Connected")
+						} else {
+							statusLabel.SetText("Alert! Server is v" + clientStatus.brokerVersion + "-" + strconv.Itoa(int(clientStatus.brokerTVersion)))
+						}
+						return false
+					})
+				}
+			} else {
+				glib.IdleAdd(func() bool {
+					tv, v := clientStatus.client.Version()
+					if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
+						statusLabel.SetText("Not connected")
+					} else {
+						statusLabel.SetText("Alert! Server is v" + clientStatus.brokerVersion + "-" + strconv.Itoa(int(clientStatus.brokerTVersion)))
+					}
+					return false
+				})
+			}
+
+			time.Sleep(time.Millisecond * 66)
+
 		}
 	}()
 
@@ -647,6 +733,7 @@ func onConfigUpdate() error {
 			return err
 		}
 		clientStatus.client = newClient
+		clientStatus.brokerTVersion, clientStatus.brokerVersion = clientStatus.client.BrokerVersion()
 		logger.Debugf("New client %d %s %s", clientStatus.localPort, clientStatus.serverHost, clientStatus.tunnelType)
 		clientStatus.userConfigChange = false
 	}
