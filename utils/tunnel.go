@@ -264,12 +264,12 @@ func (t *Tunnel) Close() {
 
 }
 
-// dataCallback read/write DATA, in udp tunnel, first bit is udp multiplex id
-type dataCallback func([]byte) (bool, []byte)
+// DataCallback read/write DATA, in udp tunnel, first bit is udp multiplex id
+type DataCallback func([]byte) (bool, []byte)
 
 // Serve wait for connection and sync data
 // readFunc, writeFunc: see syncUdp
-func (t *Tunnel) Serve(readFunc, writeFunc dataCallback) error {
+func (t *Tunnel) Serve(readFunc, writeFunc DataCallback) error {
 
 	switch t.tunnelType {
 	case ListenQuicListenUdp:
@@ -338,10 +338,10 @@ func (t *Tunnel) PingDelay() time.Duration {
 
 // syncUdp sync data between quic connection and udp connection.
 // Support quic.Stream and *net.TCPConn.
-// readFunc, writeFunc: dataCallback of when read and write data into tunnel
+// readFunc, writeFunc: DataCallback of when read and write data into tunnel
 // quicPing: send ping package to avoid quic stream timeout or not;
 // udpConnected: udp is waiting for connection or dial to address
-func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, writeFunc dataCallback, sendQuicPing, udpConnected bool) {
+func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, writeFunc DataCallback, sendQuicPing, udpConnected bool) {
 
 	switch conn.(type) {
 	case quic.Stream:

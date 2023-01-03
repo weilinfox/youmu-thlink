@@ -1,11 +1,6 @@
 package client
 
 import (
-	"errors"
-	"fmt"
-	"net"
-	"time"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -52,7 +47,7 @@ type hisoutensokuData struct {
 	ClientProf  string   // appear in INIT_REQUEST and INIT_SUCCESS
 	HostProf    string   // appear in INIT_SUCCESS
 	Spectator   bool     // appear in INIT_SUCCESS
-	SwrDisabled bool     // apear in INIT_SUCCESS
+	SwrDisabled bool     // appear in INIT_SUCCESS
 }
 
 type Hisoutensoku struct {
@@ -60,56 +55,23 @@ type Hisoutensoku struct {
 	peerStatus status123peer
 
 	peerData map[byte]hisoutensokuData // data record with client id
-
-	serverTCPAddr [6]byte
-	serverTCPConn net.Conn
 }
 
 var logger123 = logrus.WithField("Hisoutensoku", "internal")
 
 // NewHisoutensoku new Hisoutensoku spectating server
-// client should establish a separate tunnel for spectating
-// server will catch REDIRECT package and make it redirect to that tunnel
-func NewHisoutensoku(server string, spectatorPort int) (*Hisoutensoku, error) {
-
-	tcpConn, err := net.DialTimeout("tcp4", server, time.Millisecond*500)
-	if err != nil {
-		return nil, err
-	}
-
-	var addr [4]int
-	var port int
-	n, err := fmt.Sscanf(tcpConn.RemoteAddr().String(), "%d.%d.%d.%d:%d", &addr[0], &addr[1], &addr[2], &addr[3], &port)
-	if err != nil {
-		_ = tcpConn.Close()
-		return nil, err
-	} else if n != 5 {
-		_ = tcpConn.Close()
-		return nil, errors.New("Get remote address failed: " + tcpConn.RemoteAddr().String())
-	}
-
+func NewHisoutensoku() *Hisoutensoku {
 	return &Hisoutensoku{
 		peerStatus: INACTIVE,
 		peerData:   make(map[byte]hisoutensokuData),
-
-		serverTCPConn: tcpConn,
-		serverTCPAddr: [6]byte{byte(spectatorPort >> 8), byte(spectatorPort), byte(addr[0]), byte(addr[1]), byte(addr[2]), byte(addr[3])},
-	}, nil
+	}
 }
 
-// hisoutensokuWrite from game host to client
+// WriteFunc from game host to client
 // orig: original data leads with 1 byte of client id
-func (h *Hisoutensoku) hisoutensokuWrite(orig []byte) []byte {
+func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 
 	switch type123pkg(orig[1]) {
-	case REDIRECT:
-		if len(orig)-1 == 69 {
-			logger123.Debug("REDIRECT to spectacle tunnel")
-			copy(orig[6:12], h.serverTCPAddr[:])
-		} else {
-			logger123.Debug("REDIRECT with strange length ", len(orig)-1)
-		}
-
 	case INIT_SUCCESS:
 		if len(orig)-1 == 81 {
 			var v hisoutensokuData
@@ -177,12 +139,12 @@ func (h *Hisoutensoku) hisoutensokuWrite(orig []byte) []byte {
 
 	}
 
-	return orig
+	return false, orig
 }
 
-// hisoutensokuRead from game client to host
+// ReadFunc from game client to host
 // orig: original data leads with 1 byte of client id
-func (h *Hisoutensoku) hisoutensokuRead(orig []byte) []byte {
+func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 
 	switch type123pkg(orig[1]) {
 	case HELLO:
@@ -249,5 +211,5 @@ func (h *Hisoutensoku) hisoutensokuRead(orig []byte) []byte {
 
 	}
 
-	return orig
+	return false, orig
 }
