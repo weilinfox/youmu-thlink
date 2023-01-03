@@ -64,6 +64,15 @@ func main() {
 		logger.WithError(err).Fatal("Start client error")
 	}
 	defer c.Close()
+
+	tunnelVersion, version := c.Version()
+	logger.Info("Client v", version, " with tunnel version ", tunnelVersion)
+	brokerTVersion, brokerVersion := c.BrokerVersion()
+	logger.Info("Broker v", brokerVersion, " with tunnel version ", brokerTVersion)
+	if tunnelVersion != brokerTVersion {
+		logger.Warn("Broker tunnel version code not match, there may have compatible issue")
+	}
+
 	err = c.Connect()
 	if err != nil {
 		logger.WithError(err).Fatal("Client connect error")

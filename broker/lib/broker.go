@@ -402,6 +402,12 @@ func Main(listenAddr string, upperAddr string) {
 					}
 				}
 
+			case utils.VERSION:
+				// tunnel VERSION
+				version := []byte{utils.TunnelVersion}
+				version = append(version, []byte(utils.Version)...)
+				_, err = conn.Write(utils.NewDataFrame(utils.VERSION, version))
+
 			default:
 				logger.Warn("RawData data invalid")
 			}

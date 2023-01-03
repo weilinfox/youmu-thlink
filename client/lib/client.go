@@ -116,6 +116,55 @@ func (c *Client) Ping() time.Duration {
 
 }
 
+// Version get self tunnel version
+func (c *Client) Version() (byte, string) {
+	return utils.TunnelVersion, utils.Version
+}
+
+// BrokerVersion get broker tunnel version
+func (c *Client) BrokerVersion() (byte, string) {
+
+	buf := make([]byte, utils.CmdBufSize)
+
+	// dial port
+	conn, err := net.DialTimeout("tcp", c.serverHost, time.Millisecond*500)
+	if err != nil {
+		logger.WithError(err).Error("Cannot connect to broker")
+		return 0, "0.0.0"
+	}
+
+	// send version request
+	_ = conn.SetWriteDeadline(time.Now().Add(time.Millisecond * 500))
+	_, err = conn.Write(utils.NewDataFrame(utils.VERSION, nil))
+	_ = conn.SetWriteDeadline(time.Time{})
+	if err != nil {
+		_ = conn.Close()
+		logger.WithError(err).Error("Send version request failed")
+		return 0, "0.0.0"
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
+	n, err := conn.Read(buf)
+	_ = conn.SetReadDeadline(time.Time{})
+	if err != nil {
+		_ = conn.Close()
+		logger.WithError(err).Error("Get version response failed")
+		return 0, "0.0.0"
+	}
+	_ = conn.Close()
+
+	// parse response
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() || dataStream.Type() != utils.VERSION || len(dataStream.Data()) < 6 {
+		logger.Error("Invalid version response from server")
+		return 0, "0.0.0"
+	}
+
+	// tunnel version code and version
+	return dataStream.Data()[0], string(dataStream.Data()[1:])
+
+}
+
 // Connect ask new tunnel and connect
 func (c *Client) Connect() error {
 

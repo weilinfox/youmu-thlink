@@ -78,6 +78,7 @@ const (
 	NET_INFO                        // NET_INFO ask for all broker address in this net
 	NET_INFO_UPDATE                 // NET_INFO_UPDATE add or delete broker address in net
 	BROKER_INFO                     // BROKER_INFO info of this broker
+	VERSION                         // VERSION of tunnel
 )
 
 // NewDataStream return a empty data stream parser
