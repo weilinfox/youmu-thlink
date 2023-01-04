@@ -1,10 +1,15 @@
 # 白玉楼製作所 ThLink
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink?ref=badge_shield)
 
+[![License](https://img.shields.io/github/license/weilinfox/youmu-thlink)](https://github.com/weilinfox/youmu-thlink/blob/master/LICENSE)
+[![Release](https://img.shields.io/github/v/release/weilinfox/youmu-thlink)](https://github.com/weilinfox/youmu-thlink/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/weilinfox/youmu-thlink)](https://goreportcard.com/report/github.com/weilinfox/youmu-thlink)
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink?ref=badge_shield)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink?ref=badge_shield)
 
 通用的方便自搭建的东方联机器。
 
-本质上是个支持 UDP 的端口转发器。尽管理论上其他联机器也都是通用的，观战的实现依旧比较麻烦，参考 [touhou-protocol-docs](https://github.com/delthas/touhou-protocol-docs/blob/master/protocol_123.md) 。
+本质上是个支持 UDP 的端口转发器。以插件的形式实现观战。
 
 服务端和客户端使用可选的 QUIC 或 TCP 传输，具有较高的网络适应能力；支持 LZW 压缩，在一定程度上节约带宽。
 
@@ -19,7 +24,7 @@
 3. 支持使用 UDP 进行联机的东方作品
 4. 可配置的监听端口和服务器地址，方便自搭建
 5. 支持去中心化的多服务器结构
-6. 支持观战，观战支持的原理见 [hisoutensoku-spectacle](https://github.com/weilinfox/youmu-hisoutensoku-spectacle)
+6. 支持非想天则观战，观战支持的原理见 [hisoutensoku-spectacle](https://github.com/weilinfox/youmu-hisoutensoku-spectacle)
 7. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
 8. 符合习惯的命令行客户端和易用的 gtk3 图形客户端
 9. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
@@ -269,7 +274,3 @@ client 请求转发通道成功后获得一个端口对（ ``port1`` 和 ``port2
 + v0.0.3 使用了 [kcp](https://github.com/skywind3000/kcp) ，试图提升一下性能，部署以后发现从 broker 发往 client 的包都消失了……
 + v0.0.5 开始使用 [quic](https://en.wikipedia.org/wiki/QUIC) ，测试效果总体来说比 kcp 稳定得多
 + V0.0.6 开始可以在客户端自主选择使用 quic 或 tcp 传输，增强在复杂网络环境的适应性
-
-
-## License
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink?ref=badge_large)
