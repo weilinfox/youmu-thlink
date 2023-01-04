@@ -1,4 +1,6 @@
 # 白玉楼製作所 ThLink
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink?ref=badge_shield)
+
 
 通用的方便自搭建的东方联机器。
 
@@ -267,3 +269,7 @@ client 请求转发通道成功后获得一个端口对（ ``port1`` 和 ``port2
 + v0.0.3 使用了 [kcp](https://github.com/skywind3000/kcp) ，试图提升一下性能，部署以后发现从 broker 发往 client 的包都消失了……
 + v0.0.5 开始使用 [quic](https://en.wikipedia.org/wiki/QUIC) ，测试效果总体来说比 kcp 稳定得多
 + V0.0.6 开始可以在客户端自主选择使用 quic 或 tcp 传输，增强在复杂网络环境的适应性
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fweilinfox%2Fyoumu-thlink?ref=badge_large)
