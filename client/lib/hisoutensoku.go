@@ -3,13 +3,15 @@ package client
 import (
 	"bytes"
 	"compress/zlib"
-	"github.com/lucas-clemente/quic-go"
-	"github.com/sirupsen/logrus"
-	"github.com/weilinfox/youmu-thlink/utils"
 	"io"
 	"math"
 	"net"
 	"time"
+
+	"github.com/weilinfox/youmu-thlink/utils"
+
+	"github.com/lucas-clemente/quic-go"
+	"github.com/sirupsen/logrus"
 )
 
 type type123pkg byte
@@ -382,7 +384,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 
 				// game replay request from spectator
 				frameId := int(orig[3]) | int(orig[4])<<8 | int(orig[5])<<16 | int(orig[6])<<24
-				if frameId < 0 || orig[7] < h.peerData.MatchId {
+				if frameId == 0xffffffff || orig[7] < h.peerData.MatchId {
 					data := []byte{orig[0], byte(HOST_GAME), byte(GAME_MATCH)}
 					data = append(data, h.peerData.HostInfo[:]...)
 					data = append(data, h.peerData.ClientInfo[:]...)
@@ -417,6 +419,12 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 					// append addition data (frameId endFrameId matchId inputCount inputs)
 					gameInput = append([]byte{h.peerData.MatchId, byte(len(gameInput) >> 1)}, gameInput...)
 					if h.peerData.ReplayEnd[h.peerData.MatchId] {
+						if frameId == 0 {
+							// when some spectator finish fetching data,
+							// it will send 0 frame id, which lead to strange bug
+							gameInput = []byte{h.peerData.MatchId, 0}
+							sendFrameId = 0
+						}
 						gameInput = append([]byte{byte(endFrameId), byte(endFrameId >> 8), byte(endFrameId >> 16), byte(endFrameId >> 24)}, gameInput...)
 					} else {
 						gameInput = append([]byte{0, 0, 0, 0}, gameInput...)
