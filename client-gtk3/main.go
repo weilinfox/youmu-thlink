@@ -130,7 +130,7 @@ func onAppActivate(app *gtk.Application) {
 	header.PackStart(menuBtn)
 	header.SetShowCloseButton(true)
 	header.SetTitle(appName)
-	header.SetSubtitle("v" + utils.Version)
+	header.SetSubtitle("v" + utils.Version + "-" + strconv.Itoa(int(utils.TunnelVersion)))
 
 	// grid
 	mainGrid, err := gtk.GridNew()
