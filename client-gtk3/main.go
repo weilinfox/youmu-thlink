@@ -764,7 +764,7 @@ func showAboutDialog() {
 		logger.WithError(err).Error("Show about dialog error")
 	}
 	about.SetProgramName(appName)
-	about.SetVersion("Version " + utils.Version)
+	about.SetVersion("Client Version " + utils.Version + " Tunnel Version " + strconv.Itoa(int(utils.TunnelVersion)))
 	about.SetAuthors([]string{"桜風の狐"})
 	about.SetCopyright("https://github.com/gotk3/gotk3 ISC License\n" +
 		"https://github.com/lucas-clemente/quic-go MIT License\n" +
