@@ -660,13 +660,17 @@ func onAppActivate(app *gtk.Application) {
 							})
 						case client.BATTLE:
 							glib.IdleAdd(func() bool {
-								statusLabel.SetText("th12.3 game ongoing with delay " +
-									fmt.Sprintf("%.2f ms", float64(p.RepReqDelay.Nanoseconds())/2000000))
+								delay := float64(p.GetReplayDelay().Nanoseconds()) / 2000000
+								if delay > 9999 {
+									delay = 9999
+								}
+								statusLabel.SetText("th12.3 game ongoing | Delay " +
+									fmt.Sprintf("%.2f ms", delay))
 								return false
 							})
 						case client.BATTLE_WAIT_ANOTHER:
 							glib.IdleAdd(func() bool {
-								statusLabel.SetText("th12.3 game waiting")
+								statusLabel.SetText(fmt.Sprintf("th12.3 game waiting | %d spectator(s)", p.GetSpectatorCount()))
 								return false
 							})
 						default:

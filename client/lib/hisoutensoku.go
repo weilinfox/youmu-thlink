@@ -103,13 +103,14 @@ const (
 )
 
 type Hisoutensoku struct {
-	peerId       byte              // current host/client peer id (udp mutex id)
-	PeerStatus   Status123peer     // current peer status
-	peerData     *hisoutensokuData // current peer data record
-	gameId       map[byte][16]byte // game id record
-	repReqStatus status123req      // GAME_REPLAY_REQUEST send status
-	repReqTime   time.Time         // request send time
-	RepReqDelay  time.Duration     // delay between GAME_REPLAY_REQUEST and GAME_REPLAY package
+	peerId         byte              // current host/client peer id (udp mutex id)
+	PeerStatus     Status123peer     // current peer status
+	peerData       *hisoutensokuData // current peer data record
+	gameId         map[byte][16]byte // game id record
+	repReqStatus   status123req      // GAME_REPLAY_REQUEST send status
+	repReqTime     time.Time         // request send time
+	repReqDelay    time.Duration     // delay between GAME_REPLAY_REQUEST and GAME_REPLAY package
+	spectatorCount int               // spectator counter
 }
 
 var logger123 = logrus.WithField("Hisoutensoku", "internal")
@@ -117,11 +118,12 @@ var logger123 = logrus.WithField("Hisoutensoku", "internal")
 // NewHisoutensoku new Hisoutensoku spectating server
 func NewHisoutensoku() *Hisoutensoku {
 	return &Hisoutensoku{
-		PeerStatus:   INACTIVE,
-		peerData:     newHisoutensokuData(),
-		gameId:       make(map[byte][16]byte),
-		repReqStatus: INIT,
-		RepReqDelay:  time.Second,
+		PeerStatus:     INACTIVE,
+		peerData:       newHisoutensokuData(),
+		gameId:         make(map[byte][16]byte),
+		repReqStatus:   INIT,
+		repReqDelay:    time.Second,
+		spectatorCount: 0,
 	}
 }
 
@@ -350,7 +352,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 									}
 
 									h.repReqTime = time.Time{}
-									h.RepReqDelay = timeDelay
+									h.repReqDelay = timeDelay
 									h.repReqStatus = SEND
 								} else {
 									logger123.Warn("Replay data package drop: frame id ", frameId, " length ", ans[9])
@@ -394,6 +396,8 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 					data = append(data, h.peerData.MatchId)
 
 					logger123.Debug("GAME_REPLAY_REQUEST reply with GAME_MATCH")
+					logger123.Info("New spectator join")
+					h.spectatorCount++
 
 					return true, data
 
@@ -523,4 +527,12 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 		// 15 request per second
 		time.Sleep(time.Millisecond * 66)
 	}
+}
+
+func (h *Hisoutensoku) GetReplayDelay() time.Duration {
+	return h.repReqDelay
+}
+
+func (h *Hisoutensoku) GetSpectatorCount() int {
+	return h.spectatorCount
 }
