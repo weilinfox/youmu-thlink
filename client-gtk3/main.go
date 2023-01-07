@@ -472,7 +472,7 @@ func onAppActivate(app *gtk.Application) {
 			// prepare data
 			sortDelay := make([]int, len(infoMap))
 			i := 0
-			for k, _ := range infoMap {
+			for k := range infoMap {
 				sortDelay[i] = k
 				i++
 			}
