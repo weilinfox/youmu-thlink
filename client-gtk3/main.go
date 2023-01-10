@@ -206,7 +206,7 @@ func onAppActivate(app *gtk.Application) {
 		case *client.Hisoutensoku:
 			clientStatus.pluginDelayShow = true
 			if p.PeerStatus == client.BATTLE {
-				clientStatus.pluginDelay[clientStatus.pluginDelayPos] = delay
+				clientStatus.pluginDelay[clientStatus.pluginDelayPos] = p.GetReplayDelay()
 				clientStatus.pluginDelayPos = (clientStatus.pluginDelayPos + 1) % 40
 				if clientStatus.pluginDelayLen < 40 {
 					clientStatus.pluginDelayLen++
