@@ -1855,7 +1855,12 @@ static gint glg_line_graph_draw_tooltip (GlgLineGraph *graph)
 
         point_time = (time_t) g_list_nth_data (priv->lg_series_time, v_index);
 
+#if _WIN32
+        ctime_s(ch_time_r, GLG_MAX_STRING, &point_time);
+        pch_time = ch_time_r;
+#else
         pch_time = ctime_r (&point_time, ch_time_r);
+#endif
 
         g_strdelimit (pch_time, "\n", ' ');
 
