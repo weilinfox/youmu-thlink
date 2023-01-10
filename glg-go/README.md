@@ -2,6 +2,10 @@
 
 This is the original README file of GlgLineGraph library.
 
+Visit [here](https://github.com/skoona/glinegraph-cairo) to fetch the origin repo released under LGPLv2.0.
+
+Thanks [skoona](https://github.com/skoona) for his great work.
+
 ### (a.k.a cairo version of glinegraph )  July 2007/2016
 
 ![GLineGraph Widget](https://github.com/skoona/glinegraph-cairo/raw/master/images/glg_cairo3.png) 

@@ -1870,7 +1870,7 @@ static gint glg_line_graph_draw_tooltip (GlgLineGraph *graph)
             {                   /* found */
                 g_snprintf (ch_work, sizeof (ch_work), "%s", ch_buffer);
                 g_snprintf (ch_buffer, sizeof (ch_buffer),
-                            "%s{%3.1lf%% <span foreground=\"%s\">%s</span>}",
+                            "%s{%3.2lf <span foreground=\"%s\">%s</span>}",
                             ch_work,
                             psd->lg_point_dvalue[v_index],
                             psd->ch_legend_color, psd->ch_legend_text);
@@ -2139,7 +2139,9 @@ extern gboolean glg_line_graph_data_series_add_value (GlgLineGraph *graph, gint 
             	priv->lg_series_time = g_list_remove (priv->lg_series_time, gl_remove->data);
         }
         priv->lg_series_time =
-            g_list_append (priv->lg_series_time, GINT_TO_POINTER ((time_t) time (NULL)));  /* TODO: Leaking Memory - NO time_t is a gint64 */
+            g_list_append (priv->lg_series_time, GINT_TO_POINTER ((time_t) time (NULL)));
+            /* TODO: Leaking Memory - NO time_t is a gint64
+                     time always 1970 */
     }
 
     g_debug ("  ==>DataSeriesAddValue: series=%d, value=%3.1lf, index=%d, count=%d, max_pts=%d",

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	client "github.com/weilinfox/youmu-thlink/client/lib"
+	"github.com/weilinfox/youmu-thlink/glg-go"
 	"github.com/weilinfox/youmu-thlink/utils"
 
 	"github.com/gotk3/gotk3/gdk"
@@ -21,7 +22,7 @@ var icon *gdk.Pixbuf
 
 const appName = "白玉楼製作所 ThLink"
 
-type Status struct {
+type status struct {
 	localPort  int
 	serverHost string
 	tunnelType string
@@ -34,10 +35,18 @@ type Status struct {
 
 	brokerTVersion byte
 	brokerVersion  string
+
+	delay           [40]time.Duration
+	delayPos        int
+	delayLen        int
+	pluginDelay     [40]time.Duration
+	pluginDelayPos  int
+	pluginDelayLen  int
+	pluginDelayShow bool
 }
 
 // clientStatus all of this client-gui
-var clientStatus = Status{
+var clientStatus = status{
 	localPort:        client.DefaultLocalPort,
 	serverHost:       client.DefaultServerHost,
 	tunnelType:       client.DefaultTunnelType,
@@ -45,6 +54,11 @@ var clientStatus = Status{
 	plugin:           nil,
 	pluginNum:        0,
 	userConfigChange: false,
+	delayPos:         0,
+	delayLen:         0,
+	pluginDelayPos:   0,
+	pluginDelayLen:   0,
+	pluginDelayShow:  false,
 }
 
 func main() {
@@ -103,11 +117,6 @@ func onAppActivate(app *gtk.Application) {
 	aAbout := glib.SimpleActionNew("about", nil)
 	aAbout.Connect("activate", showAboutDialog)
 	app.AddAction(aAbout)
-	aInfo := glib.SimpleActionNew("info", nil)
-	aInfo.Connect("activate", func() {
-
-	})
-	app.AddAction(aInfo)
 
 	appWindow.Connect("destroy", onAppDestroy)
 
@@ -123,7 +132,7 @@ func onAppActivate(app *gtk.Application) {
 	menu := glib.MenuNew()
 	menu.Append("Reset config", "app.reset")
 	menu.Append("Network discovery", "app.net-disc")
-	menu.Append("Tunnel info", "app.info")
+	menu.Append("Tunnel status", "app.t-status")
 	menu.Append("About thlink", "app.about")
 	menu.Append("Quit", "app.quit")
 	menuBtn.SetMenuModel(&menu.MenuModel)
@@ -186,6 +195,24 @@ func onAppActivate(app *gtk.Application) {
 	setPingLabel := func(delay time.Duration) {
 		logger.Debugf("Display new delay %.2f ms", float64(delay.Nanoseconds())/1000000)
 		pingLabel.SetText(fmt.Sprintf("%.2f ms", float64(delay.Nanoseconds())/1000000))
+
+		clientStatus.delay[clientStatus.delayPos] = delay
+		clientStatus.delayPos = (clientStatus.delayPos + 1) % 40
+		if clientStatus.delayLen < 40 {
+			clientStatus.delayLen++
+		}
+
+		switch p := clientStatus.plugin.(type) {
+		case *client.Hisoutensoku:
+			clientStatus.pluginDelayShow = true
+			if p.PeerStatus == client.BATTLE {
+				clientStatus.pluginDelay[clientStatus.pluginDelayPos] = delay
+				clientStatus.pluginDelayPos = (clientStatus.pluginDelayPos + 1) % 40
+				if clientStatus.pluginDelayLen < 40 {
+					clientStatus.pluginDelayLen++
+				}
+			}
+		}
 	}
 	pingBtn.Connect("clicked", func() {
 
@@ -601,6 +628,99 @@ func onAppActivate(app *gtk.Application) {
 	})
 	app.AddAction(aNetDisc)
 
+	// tunnel status
+	aTStatus := glib.SimpleActionNew("t-status", nil)
+	aTStatus.Connect("activate", func() {
+
+		showTStatusDialog := func() error {
+
+			// setup dialog with button
+			dialog, err := gtk.DialogNew()
+			if err != nil {
+				return err
+			}
+			dialog.SetIcon(icon)
+			dialog.SetTitle("Tunnel status")
+			btn, err := dialog.AddButton("Close", gtk.RESPONSE_CLOSE)
+			if err != nil {
+				return err
+			}
+			btn.Connect("clicked", func() {
+				dialog.Destroy()
+			})
+
+			glg, err := glgo.GlgLineGraphNew()
+			if err != nil {
+				return err
+			}
+
+			// setup dialog with glgLineGraph
+			dialogBox, err := dialog.GetContentArea()
+			if err != nil {
+				return err
+			}
+			glg.SetHExpand(true)
+			glg.SetVExpand(true)
+			dialogBox.Add(glg)
+
+			source := glib.TimeoutAdd(1000, func() bool {
+
+				pos := (clientStatus.delayPos + 39) % 40
+				glg.GlgLineGraphDataSeriesAddValue(0,
+					float64(clientStatus.delay[pos].Nanoseconds())/1000000)
+
+				if clientStatus.pluginDelayShow {
+					switch p := clientStatus.plugin.(type) {
+					case *client.Hisoutensoku:
+						if p.PeerStatus == client.BATTLE {
+							glg.GlgLineGraphDataSeriesAddValue(1, float64(p.GetReplayDelay().Nanoseconds())/1000000)
+						}
+					}
+				}
+
+				return true
+			})
+
+			dialog.Connect("destroy", func() {
+				glib.SourceRemove(source)
+			})
+
+			dialog.SetDefaultSize(500, 300)
+			dialog.ShowAll()
+
+			glg.GlgLineGraphDataSeriesAdd("Tunnel Delay", "blue")
+			glg.GlgLineGraphDataSeriesAdd("Peer Delay", "red")
+			pos, l := clientStatus.delayPos, clientStatus.delayLen
+			if l == 40 {
+				for i := pos; i < 40; i++ {
+					glg.GlgLineGraphDataSeriesAddValue(0, float64(clientStatus.delay[i].Nanoseconds())/1000000)
+				}
+			}
+			for i := 0; i < pos; i++ {
+				glg.GlgLineGraphDataSeriesAddValue(0, float64(clientStatus.delay[i].Nanoseconds())/1000000)
+			}
+			if clientStatus.pluginDelayShow {
+				pos, l = clientStatus.pluginDelayPos, clientStatus.pluginDelayLen
+				if l == 40 {
+					for i := pos; i < 40; i++ {
+						glg.GlgLineGraphDataSeriesAddValue(1, float64(clientStatus.pluginDelay[i].Nanoseconds())/1000000)
+					}
+				}
+				for i := 0; i < pos; i++ {
+					glg.GlgLineGraphDataSeriesAddValue(1, float64(clientStatus.pluginDelay[i].Nanoseconds())/1000000)
+				}
+			}
+
+			return nil
+		}
+
+		err = showTStatusDialog()
+		if err != nil {
+			showErrorDialog(appWindow, "Show tunnel status dialog error", err)
+		}
+	})
+	app.AddAction(aTStatus)
+
 	// add items to grid
 	mainGrid.Add(serverLabel)
 	mainGrid.Add(serverEntry)
@@ -660,7 +780,7 @@ func onAppActivate(app *gtk.Application) {
 							})
 						case client.BATTLE:
 							glib.IdleAdd(func() bool {
-								delay := float64(p.GetReplayDelay().Nanoseconds()) / 2000000
+								delay := float64(p.GetReplayDelay().Nanoseconds()) / 1000000
 								if delay > 9999 {
 									delay = 9999
 								}
@@ -773,8 +893,9 @@ func showAboutDialog() {
 	about.SetCopyright("https://github.com/gotk3/gotk3 ISC License\n" +
 		"https://github.com/lucas-clemente/quic-go MIT License\n" +
 		"https://github.com/sirupsen/logrus MIT License\n" +
+		"https://github.com/weilinfox/youmu-thlink/glg-go GPL-3.0 License\n" +
 		"https://github.com/weilinfox/youmu-thlink AGPL-3.0 License\n" +
-		"\n2022 weilinfox")
+		"\n2022-2023 weilinfox")
 	about.SetTitle("About ThLink")
 	if icon != nil {
 		about.SetIcon(icon)
