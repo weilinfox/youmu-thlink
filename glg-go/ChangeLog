@@ -1,0 +1,31 @@
+* Tue Jan 10, 2023   Release 0.5.0-0 weilinfox<weilinfox@inuyasha.love>
+-  Move some deprecated function and add go binding
+-  Upgrade license to GPL3.0
+
+* Fri Jul 20, 2007   Release 0.3.2-0 James Scott Jr.<skoona@users.sourceforge.net>
+-  Fine tuned title positions around plot.box and tweaked tooltips
+
+* Tue Jul 03, 2007   Release 0.3.0-0 James Scott Jr.<skoona@users.sourceforge.net>
+-  ReWritten to be simple gtk widget using cairo graphics and to use g_object_set properties
+
+* Fri May 26, 2006   Release 0.2.3-0 James Scott Jr.<skoona@users.sourceforge.net>
+-  use this command with autogen
+   ./autogen.sh --enable-gtk-doc
+- Changed the dir structure to match gtk-docs abilities.   
+
+* Fri May 26, 2006   Release 0.2.2-0 James Scott Jr.<skoona@users.sourceforge.net>
+- Added api documentation for SkLinegraph widget using GTK-DOC
+  located in ./docs/reference directory
+
+* Thur May 25, 2006   Release 0.2.1-0 James Scott Jr.<skoona@users.sourceforge.net>
+- Found it necassary to change the root type name to SkLinegraph to comply with
+  Gtk naming space standards; from SkLineGraph.
+- SkLinegraph and sk_linegraph_*() is now the correct syntax.
+
+* Wed May 24, 2006   Release 0.2.0-0 James Scott Jr.<skoona@users.sourceforge.net>
+- First public release of glinegraph package
+- contains: (glinegraph) regular routines for direct integration
+            (SkLinegraph) widget style routines for easier integration
+
+
+
