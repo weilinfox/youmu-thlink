@@ -117,8 +117,8 @@ func (c *Client) Ping() time.Duration {
 }
 
 // Version get self tunnel version
-func (c *Client) Version() (byte, string) {
-	return utils.TunnelVersion, utils.Version
+func (c *Client) Version() (byte, string, string) {
+	return utils.TunnelVersion, utils.Version, utils.Channel
 }
 
 // BrokerVersion get broker tunnel version

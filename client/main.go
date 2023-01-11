@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
-	"github.com/sirupsen/logrus"
-	client "github.com/weilinfox/youmu-thlink/client/lib"
 	"sort"
+
+	client "github.com/weilinfox/youmu-thlink/client/lib"
+
+	"github.com/sirupsen/logrus"
 )
 
 var logger = logrus.WithField("client", "main")
@@ -66,7 +68,10 @@ func main() {
 	}
 	defer c.Close()
 
-	tunnelVersion, version := c.Version()
+	tunnelVersion, version, channel := c.Version()
+	if channel != "" {
+		version += "-" + channel
+	}
 	logger.Info("Client v", version, " with tunnel version ", tunnelVersion)
 	brokerTVersion, brokerVersion := c.BrokerVersion()
 	logger.Info("Broker v", brokerVersion, " with tunnel version ", brokerTVersion)

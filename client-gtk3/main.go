@@ -139,7 +139,13 @@ func onAppActivate(app *gtk.Application) {
 	header.PackStart(menuBtn)
 	header.SetShowCloseButton(true)
 	header.SetTitle(appName)
-	header.SetSubtitle("v" + utils.Version + "-" + strconv.Itoa(int(utils.TunnelVersion)))
+	var verText string
+	if utils.Channel == "" {
+		verText = "v" + utils.Version + "-" + strconv.Itoa(int(utils.TunnelVersion))
+	} else {
+		verText = "v" + utils.Version + "-" + utils.Channel + "-" + strconv.Itoa(int(utils.TunnelVersion))
+	}
+	header.SetSubtitle(verText)
 
 	// grid
 	mainGrid, err := gtk.GridNew()
@@ -799,7 +805,7 @@ func onAppActivate(app *gtk.Application) {
 							})
 						default:
 							glib.IdleAdd(func() bool {
-								tv, v := clientStatus.client.Version()
+								tv, v, _ := clientStatus.client.Version()
 								if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
 									statusLabel.SetText("th12.3 game not started")
 								} else {
@@ -811,7 +817,7 @@ func onAppActivate(app *gtk.Application) {
 					}
 				} else {
 					glib.IdleAdd(func() bool {
-						tv, v := clientStatus.client.Version()
+						tv, v, _ := clientStatus.client.Version()
 						if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
 							statusLabel.SetText("Connected")
 						} else {
@@ -822,7 +828,7 @@ func onAppActivate(app *gtk.Application) {
 				}
 			} else {
 				glib.IdleAdd(func() bool {
-					tv, v := clientStatus.client.Version()
+					tv, v, _ := clientStatus.client.Version()
 					if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
 						statusLabel.SetText("Not connected")
 					} else {
@@ -892,7 +898,13 @@ func showAboutDialog() {
 		logger.WithError(err).Error("Show about dialog error")
 	}
 	about.SetProgramName(appName)
-	about.SetVersion("Client Version " + utils.Version + " Tunnel Version " + strconv.Itoa(int(utils.TunnelVersion)))
+	var verText string
+	if utils.Channel == "" {
+		verText = "Client Version " + utils.Version + " Tunnel Version " + strconv.Itoa(int(utils.TunnelVersion))
+	} else {
+		verText = "Client Version " + utils.Version + "-" + utils.Channel + " Tunnel Version " + strconv.Itoa(int(utils.TunnelVersion))
+	}
+	about.SetVersion(verText)
 	about.SetAuthors([]string{"桜風の狐"})
 	about.SetCopyright("https://github.com/gotk3/gotk3 ISC License\n" +
 		"https://github.com/lucas-clemente/quic-go MIT License\n" +
