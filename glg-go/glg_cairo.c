@@ -235,6 +235,7 @@ typedef struct _GLG_SERIES {
     gdouble     d_max_value;
     gdouble     d_min_value;
     gdouble    *lg_point_dvalue;    /* array of doubles y values zero based, x = index */
+    time_t     *lg_point_time;      /* array of data append time_t */
     GdkPoint   *point_pos;      /* last gdk position each point - recalc on evey draw */
 } GLG_SERIES, *PGLG_SERIES;
 
@@ -283,7 +284,6 @@ struct _GlgLineGraphPrivate
     gint        i_points_available;
     gint        i_num_series;   /* 1 based */
     GList      *lg_series;      /* double-linked list of data series PGLG_SERIES */
-    GList      *lg_series_time; /* time_t of each sample */
     gint       series_line_width;        /* drawn line width for data series -- default: 3 */
     /* buffer around all sides */
     gint        x_border;
@@ -589,7 +589,7 @@ static void glg_line_graph_init (GlgLineGraph *graph)
 	gtk_widget_set_app_paintable (GTK_WIDGET(graph), TRUE);
 
 	priv->cb_id = GLG_PRIVATE_ID;
-	priv->b_tooltip_active = FALSE;
+	priv->b_tooltip_active = TRUE;
 	priv->b_mouse_onoff = FALSE;
 	if (priv->series_line_width < 1) { 
 		priv->series_line_width = 2;
@@ -1853,32 +1853,35 @@ static gint glg_line_graph_draw_tooltip (GlgLineGraph *graph)
         gchar      *pch_time = NULL;
         time_t      point_time;
 
-        point_time = (time_t) g_list_nth_data (priv->lg_series_time, v_index);
-
-#if _WIN32
-        ctime_s(ch_time_r, GLG_MAX_STRING, &point_time);
-        pch_time = ch_time_r;
-#else
-        pch_time = ctime_r (&point_time, ch_time_r);
-#endif
-
-        g_strdelimit (pch_time, "\n", ' ');
-
         g_snprintf (ch_buffer, sizeof (ch_buffer),
-                    "<small>{ <u>sample #%d @ %s</u>}\n", v_index, pch_time);
-                    
+                    "Sample #%d<small>", v_index);
+
         data_sets = g_list_first (priv->lg_series);
         while (data_sets)
         {
             psd = data_sets->data;
             if (psd != NULL)
             {                   /* found */
+                point_time = psd->lg_point_time[v_index];
+                if (point_time == 0) { /* skip empty series */
+                    data_sets = g_list_next (data_sets);
+                    continue;
+                }
+#if _WIN32
+                ctime_s(ch_time_r, GLG_MAX_STRING, &point_time);
+                pch_time = ch_time_r;
+#else
+                pch_time = ctime_r (&point_time, ch_time_r);
+#endif
+                g_strdelimit (pch_time, "\n", ' ');
+
                 g_snprintf (ch_work, sizeof (ch_work), "%s", ch_buffer);
                 g_snprintf (ch_buffer, sizeof (ch_buffer),
-                            "%s{%3.2lf <span foreground=\"%s\">%s</span>}",
+                            "%s\n<u>{%3.2lf <span foreground=\"%s\">%s</span> @ %s}</u>",
                             ch_work,
                             psd->lg_point_dvalue[v_index],
-                            psd->ch_legend_color, psd->ch_legend_text);
+                            psd->ch_legend_color, psd->ch_legend_text,
+                            pch_time);
                 
                 /* compute y point pixel value */                
 			    d_value_y = priv->plot_box.y + 
@@ -2120,34 +2123,21 @@ extern gboolean glg_line_graph_data_series_add_value (GlgLineGraph *graph, gint 
         for (v_index = 0; v_index < psd->i_max_points; v_index++)
         {
             psd->lg_point_dvalue[v_index] = psd->lg_point_dvalue[v_index + 1];
+            psd->lg_point_time[v_index] = psd->lg_point_time[v_index + 1];
         }
         psd->lg_point_dvalue[psd->i_max_points] = y_value;
+        psd->lg_point_time[psd->i_max_points] = time (NULL);
     }
     else
     {
-        psd->lg_point_dvalue[psd->i_point_count++] = y_value;
+        psd->lg_point_dvalue[psd->i_point_count] = y_value;
+        psd->lg_point_time[psd->i_point_count++] = time (NULL);
     }
 
     psd->d_max_value = MAX (y_value, psd->d_max_value);
     psd->d_min_value = MIN (y_value, psd->d_min_value);
 
     priv->i_points_available = MAX (priv->i_points_available, psd->i_point_count);
-
-    /* record current time with data points */
-    if (psd->i_series_id == priv->i_num_series - 1)
-    {
-        GList *gl_remove = NULL;
-
-        if (g_list_length (priv->lg_series_time) == (guint)psd->i_max_points +1 )
-        {
-            gl_remove = g_list_first (priv->lg_series_time);
-            	priv->lg_series_time = g_list_remove (priv->lg_series_time, gl_remove->data);
-        }
-        priv->lg_series_time =
-            g_list_append (priv->lg_series_time, GINT_TO_POINTER ((time_t) time (NULL)));
-            /* TODO: Leaking Memory - NO time_t is a gint64
-                     time always 1970 */
-    }
 
     g_debug ("  ==>DataSeriesAddValue: series=%d, value=%3.1lf, index=%d, count=%d, max_pts=%d",
              i_series_number, y_value, v_index, psd->i_point_count, psd->i_max_points);
@@ -2176,14 +2166,13 @@ static gint glg_line_graph_data_series_remove_all (GlgLineGraph *graph)
     {
         psd = data_sets->data;
         g_free (psd->lg_point_dvalue);
+        g_free (psd->lg_point_time);
         g_free (psd->point_pos);
         data_sets = g_list_next (data_sets);
         i_count++;
     }
     g_list_free_full (priv->lg_series, g_free);
-    g_list_free (priv->lg_series_time);
     priv->lg_series = NULL;
-    priv->lg_series_time = NULL;
     priv->i_num_series = 0;
     priv->i_points_available = 0;    
 
@@ -2221,6 +2210,8 @@ extern gint glg_line_graph_data_series_add (GlgLineGraph *graph, const gchar *pc
 
     psd->lg_point_dvalue = (gdouble *) g_new0 (gdouble, (priv->x_range.i_max_scale + 4));
     g_return_val_if_fail (psd->lg_point_dvalue != NULL, -1);
+    psd->lg_point_time = (time_t *) g_new0 (time_t, (priv->x_range.i_max_scale + 4));
+    g_return_val_if_fail (psd->lg_point_time != NULL, -1);
 
     psd->point_pos = g_new0 (GdkPoint, (priv->x_range.i_max_scale + 4));
     g_return_val_if_fail (psd->point_pos != NULL, -1);
