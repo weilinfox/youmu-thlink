@@ -25,6 +25,8 @@ gtk 客户端则可以在菜单的 ``Network Discovery`` 自主选择客户端�
 
 感谢 [JetBrains](https://www.jetbrains.com/) 的 GoLand 学生许可证。
 
+![screenshot-v0.0.10-amd64-windows](screenshot/screenshot-v0.0.10-amd64-windows.png)
+
 ## 特性
 
 1. 使用 [QUIC](https://en.wikipedia.org/wiki/QUIC)/TCP 作为传输协议
