@@ -198,16 +198,21 @@ func onAppActivate(app *gtk.Application) {
 	}
 	pingBtn.SetHExpand(true)
 
+	pingDelay := false
 	setPingLabel := func(delay time.Duration) {
-		logger.Debugf("Display new delay %.2f ms", float64(delay.Nanoseconds())/1000000)
-		pingLabel.SetText(fmt.Sprintf("%.2f ms", float64(delay.Nanoseconds())/1000000))
+		if !pingDelay { // once each two second
+			logger.Debugf("Display new delay %.2f ms", float64(delay.Nanoseconds())/1000000)
+			pingLabel.SetText(fmt.Sprintf("%.2f ms", float64(delay.Nanoseconds())/1000000))
 
-		clientStatus.delay[clientStatus.delayPos] = delay
-		clientStatus.delayPos = (clientStatus.delayPos + 1) % 40
-		if clientStatus.delayLen < 40 {
-			clientStatus.delayLen++
+			clientStatus.delay[clientStatus.delayPos] = delay
+			clientStatus.delayPos = (clientStatus.delayPos + 1) % 40
+			if clientStatus.delayLen < 40 {
+				clientStatus.delayLen++
+			}
 		}
+		pingDelay = !pingDelay
 
+		// once per second
 		switch p := clientStatus.plugin.(type) {
 		case *client.Hisoutensoku:
 			clientStatus.pluginDelayShow = true
@@ -759,15 +764,21 @@ func onAppActivate(app *gtk.Application) {
 	appWindow.ShowAll()
 
 	// auto update ping
+	pingDelay1 := false
 	go func() {
 		for {
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second)
 
 			glib.IdleAdd(func() bool {
 				if clientStatus.client.Serving() {
+					// once per second
 					setPingLabel(clientStatus.client.TunnelDelay())
 				} else {
-					setPingLabel(clientStatus.client.Ping())
+					// once each two second
+					if !pingDelay1 {
+						setPingLabel(clientStatus.client.Ping())
+					}
+					pingDelay1 = !pingDelay1
 				}
 				return false
 			})
