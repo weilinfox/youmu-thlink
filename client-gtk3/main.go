@@ -663,11 +663,15 @@ func onAppActivate(app *gtk.Application) {
 			glg.SetVExpand(true)
 			dialogBox.Add(glg)
 
+			pingDelay := false
 			source := glib.TimeoutAdd(1000, func() bool {
 
-				pos := (clientStatus.delayPos + 39) % 40
-				glg.GlgLineGraphDataSeriesAddValue(0,
-					float64(clientStatus.delay[pos].Nanoseconds())/1000000)
+				if !pingDelay {
+					pos := (clientStatus.delayPos + 39) % 40
+					glg.GlgLineGraphDataSeriesAddValue(0,
+						float64(clientStatus.delay[pos].Nanoseconds())/1000000)
+				}
+				pingDelay = !pingDelay
 
 				if clientStatus.pluginDelayShow {
 					switch p := clientStatus.plugin.(type) {
