@@ -197,6 +197,12 @@ func NewTunnel(config *TunnelConfig) (*Tunnel, error) {
 		}
 		loggerTunnel.Debug("TCP dial ", tcpConn.RemoteAddr())
 
+		err = tcpConn.SetNoDelay(true)
+		if err != nil {
+			tcpConn.Close()
+			return nil, err
+		}
+
 		// connect udp addr
 		udpAddr, err := net.ResolveUDPAddr("udp", config.Address1)
 		if err != nil {
