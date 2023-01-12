@@ -407,7 +407,7 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 					break
 				}
 				// no longer than 5 seconds
-				time.Sleep(time.Second * 2)
+				time.Sleep(time.Second)
 			}
 
 		}()

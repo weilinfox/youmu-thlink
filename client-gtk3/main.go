@@ -198,19 +198,15 @@ func onAppActivate(app *gtk.Application) {
 	}
 	pingBtn.SetHExpand(true)
 
-	pingDelay := false
 	setPingLabel := func(delay time.Duration) {
-		if !pingDelay { // once each two second
-			logger.Debugf("Display new delay %.2f ms", float64(delay.Nanoseconds())/1000000)
-			pingLabel.SetText(fmt.Sprintf("%.2f ms", float64(delay.Nanoseconds())/1000000))
+		logger.Debugf("Display new delay %.2f ms", float64(delay.Nanoseconds())/1000000)
+		pingLabel.SetText(fmt.Sprintf("%.2f ms", float64(delay.Nanoseconds())/1000000))
 
-			clientStatus.delay[clientStatus.delayPos] = delay
-			clientStatus.delayPos = (clientStatus.delayPos + 1) % 40
-			if clientStatus.delayLen < 40 {
-				clientStatus.delayLen++
-			}
+		clientStatus.delay[clientStatus.delayPos] = delay
+		clientStatus.delayPos = (clientStatus.delayPos + 1) % 40
+		if clientStatus.delayLen < 40 {
+			clientStatus.delayLen++
 		}
-		pingDelay = !pingDelay
 
 		// once per second
 		switch p := clientStatus.plugin.(type) {
@@ -674,15 +670,11 @@ func onAppActivate(app *gtk.Application) {
 			glg.SetVExpand(true)
 			dialogBox.Add(glg)
 
-			pingDelay := false
 			source := glib.TimeoutAdd(1000, func() bool {
 
-				if !pingDelay {
-					pos := (clientStatus.delayPos + 39) % 40
-					glg.GlgLineGraphDataSeriesAddValue(0,
-						float64(clientStatus.delay[pos].Nanoseconds())/1000000)
-				}
-				pingDelay = !pingDelay
+				pos := (clientStatus.delayPos + 39) % 40
+				glg.GlgLineGraphDataSeriesAddValue(0,
+					float64(clientStatus.delay[pos].Nanoseconds())/1000000)
 
 				if clientStatus.pluginDelayShow {
 					switch p := clientStatus.plugin.(type) {
@@ -764,7 +756,7 @@ func onAppActivate(app *gtk.Application) {
 	appWindow.ShowAll()
 
 	// auto update ping
-	pingDelay1 := false
+	pingDelay := false
 	go func() {
 		for {
 			time.Sleep(time.Second)
@@ -775,10 +767,10 @@ func onAppActivate(app *gtk.Application) {
 					setPingLabel(clientStatus.client.TunnelDelay())
 				} else {
 					// once each two second
-					if !pingDelay1 {
+					if !pingDelay {
 						setPingLabel(clientStatus.client.Ping())
 					}
-					pingDelay1 = !pingDelay1
+					pingDelay = !pingDelay
 				}
 				return false
 			})
