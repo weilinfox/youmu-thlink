@@ -818,8 +818,8 @@ func onAppActivate(app *gtk.Application) {
 							})
 						default:
 							glib.IdleAdd(func() bool {
-								tv, v, _ := clientStatus.client.Version()
-								if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
+								tv, _, _ := clientStatus.client.Version()
+								if tv == clientStatus.brokerTVersion {
 									statusLabel.SetText("th12.3 game not started")
 								} else {
 									statusLabel.SetText("Plugin alert! Server is v" + clientStatus.brokerVersion + "-" + strconv.Itoa(int(clientStatus.brokerTVersion)))
@@ -830,8 +830,8 @@ func onAppActivate(app *gtk.Application) {
 					}
 				} else {
 					glib.IdleAdd(func() bool {
-						tv, v, _ := clientStatus.client.Version()
-						if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
+						tv, _, _ := clientStatus.client.Version()
+						if tv == clientStatus.brokerTVersion {
 							statusLabel.SetText("Connected")
 						} else {
 							statusLabel.SetText("Alert! Server is v" + clientStatus.brokerVersion + "-" + strconv.Itoa(int(clientStatus.brokerTVersion)))
@@ -841,8 +841,8 @@ func onAppActivate(app *gtk.Application) {
 				}
 			} else {
 				glib.IdleAdd(func() bool {
-					tv, v, _ := clientStatus.client.Version()
-					if tv == clientStatus.brokerTVersion && v == clientStatus.brokerVersion {
+					tv, _, _ := clientStatus.client.Version()
+					if tv == clientStatus.brokerTVersion {
 						statusLabel.SetText("Not connected")
 					} else {
 						statusLabel.SetText("Alert! Server is v" + clientStatus.brokerVersion + "-" + strconv.Itoa(int(clientStatus.brokerTVersion)))
