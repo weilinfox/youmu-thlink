@@ -711,6 +711,7 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 
 	switch t.tunnelStatus {
 	case STATUS_CONNECTED:
+		loggerTunnel.Warn("Tunnel failed")
 		t.tunnelStatus = STATUS_FAILED
 	}
 
