@@ -265,6 +265,11 @@ func (c *Client) TunnelType() string {
 	return c.tunnelType
 }
 
+// TunnelStatus get tunnel status
+func (c *Client) TunnelStatus() utils.TunnelStatus {
+	return c.tunnel.Status()
+}
+
 // ServerHost get client config server host
 func (c *Client) ServerHost() string {
 	return c.serverHost
