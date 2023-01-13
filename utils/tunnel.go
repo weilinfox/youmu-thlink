@@ -22,6 +22,8 @@ const (
 type Tunnel struct {
 	tunnelType TunnelType
 
+	tunnelStatus TunnelStatus
+
 	pingDelay time.Duration
 
 	configPort0 int
@@ -41,6 +43,15 @@ const (
 	DialTcpDialUdp
 	ListenQuicListenUdp
 	ListenTcpListenUdp
+)
+
+type TunnelStatus int
+
+const (
+	STATUS_INIT TunnelStatus = iota
+	STATUS_CONNECTED
+	STATUS_CLOSED
+	STATUS_FAILED
 )
 
 // TunnelConfig default IP is 0.0.0.0:0
@@ -95,11 +106,12 @@ func NewTunnel(config *TunnelConfig) (*Tunnel, error) {
 		port1, _ := strconv.ParseInt(sport1, 10, 32)
 
 		return &Tunnel{
-			tunnelType:  config.Type,
-			configPort0: int(port0),
-			connection0: quicListener,
-			configPort1: int(port1),
-			connection1: udpConn,
+			tunnelType:   config.Type,
+			tunnelStatus: STATUS_INIT,
+			configPort0:  int(port0),
+			connection0:  quicListener,
+			configPort1:  int(port1),
+			connection1:  udpConn,
 		}, nil
 
 	case ListenTcpListenUdp:
@@ -237,7 +249,10 @@ func NewTunnel(config *TunnelConfig) (*Tunnel, error) {
 // Close make sure all connection be closed after use
 func (t *Tunnel) Close() {
 
-	if t.connection0 != nil {
+	oldStatus := t.tunnelStatus
+	t.tunnelStatus = STATUS_CLOSED
+
+	if oldStatus != STATUS_CLOSED && t.connection0 != nil {
 		switch tt := t.connection0.(type) {
 		case quic.Listener:
 			_ = tt.Close()
@@ -249,10 +264,11 @@ func (t *Tunnel) Close() {
 			_ = tt.Close()
 		default:
 			loggerTunnel.Errorf("I do not know how to close it: %T", tt)
+			t.tunnelStatus = STATUS_FAILED
 		}
 	}
 
-	if t.connection1 != nil {
+	if oldStatus != STATUS_CLOSED && t.connection1 != nil {
 		switch tt := t.connection1.(type) {
 		case quic.Listener:
 			_ = tt.Close()
@@ -264,6 +280,7 @@ func (t *Tunnel) Close() {
 			_ = tt.Close()
 		default:
 			loggerTunnel.Errorf("I do not know how to close it: %T", tt)
+			t.tunnelStatus = STATUS_FAILED
 		}
 	}
 
@@ -285,12 +302,14 @@ func (t *Tunnel) Serve(readFunc, writeFunc PluginCallback, plRoutine PluginGorou
 		// accept quic stream
 		quicConn, err := t.connection0.(quic.Listener).Accept(context.Background())
 		if err != nil {
+			t.tunnelStatus = STATUS_FAILED
 			return err
 		}
 		loggerTunnel.Debug("Accept quic connection from ", quicConn.RemoteAddr().String())
 
 		quicStream, err := quicConn.AcceptStream(context.Background())
 		if err != nil {
+			t.tunnelStatus = STATUS_FAILED
 			return err
 		}
 		loggerTunnel.Debug("Accept quic stream from ", quicConn.RemoteAddr().String())
@@ -304,10 +323,12 @@ func (t *Tunnel) Serve(readFunc, writeFunc PluginCallback, plRoutine PluginGorou
 		// accept tcp connection
 		err := t.connection0.(*net.TCPListener).SetDeadline(time.Now().Add(time.Second * 10))
 		if err != nil {
+			t.tunnelStatus = STATUS_FAILED
 			return err
 		}
 		tcpConn, err := t.connection0.(*net.TCPListener).AcceptTCP()
 		if err != nil {
+			t.tunnelStatus = STATUS_FAILED
 			return err
 		}
 		loggerTunnel.Debug("Accept tcp connection from ", tcpConn.RemoteAddr().String())
@@ -344,12 +365,19 @@ func (t *Tunnel) PingDelay() time.Duration {
 	return t.pingDelay
 }
 
+// Status return TunnelStatus, get current tunnel status
+func (t *Tunnel) Status() TunnelStatus {
+	return t.tunnelStatus
+}
+
 // syncUdp sync data between quic connection and udp connection.
 // Support quic.Stream and *net.TCPConn.
 // readFunc, writeFunc: PluginCallback of when read and write data into tunnel
 // quicPing: send ping package to avoid quic stream timeout or not;
 // udpConnected: udp is waiting for connection or dial to address
 func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, writeFunc PluginCallback, plRoutine PluginGoroutine, sendQuicPing, udpConnected bool) {
+
+	t.tunnelStatus = STATUS_CONNECTED
 
 	switch conn.(type) {
 	case quic.Stream:
@@ -680,5 +708,10 @@ func (t *Tunnel) syncUdp(conn interface{}, udpConn *net.UDPConn, readFunc, write
 	}
 
 	<-ch
+
+	switch t.tunnelStatus {
+	case STATUS_CONNECTED:
+		t.tunnelStatus = STATUS_FAILED
+	}
 
 }
