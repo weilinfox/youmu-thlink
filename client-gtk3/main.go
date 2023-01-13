@@ -756,8 +756,13 @@ func onAppActivate(app *gtk.Application) {
 	appWindow.ShowAll()
 
 	// auto update ping
-	pingDelay := false
 	go func() {
+
+		pingDelay := false
+		pingRec := time.Duration(0)
+		pingSameCnt := 0
+		addrBak := ""
+
 		for {
 			time.Sleep(time.Second)
 
@@ -766,7 +771,23 @@ func onAppActivate(app *gtk.Application) {
 					// once per second
 					switch clientStatus.client.TunnelStatus() {
 					case utils.STATUS_CONNECTED:
-						setPingLabel(clientStatus.client.TunnelDelay())
+						delay := clientStatus.client.TunnelDelay()
+						if delay == pingRec {
+							pingSameCnt++
+						} else {
+							pingRec = delay
+							pingSameCnt = 0
+							setPingLabel(delay)
+						}
+						if pingSameCnt > 1 {
+							if addrBak == "" {
+								addrBak, _ = addrLabel.GetText()
+								addrLabel.SetText("Tunnel hanged up?")
+							}
+						} else if addrBak != "" {
+							addrLabel.SetText(addrBak)
+							addrBak = ""
+						}
 					case utils.STATUS_INIT:
 						addrLabel.SetText("Tunnel init")
 					case utils.STATUS_FAILED:
