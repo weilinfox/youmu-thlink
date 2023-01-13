@@ -764,7 +764,17 @@ func onAppActivate(app *gtk.Application) {
 			glib.IdleAdd(func() bool {
 				if clientStatus.client.Serving() {
 					// once per second
-					setPingLabel(clientStatus.client.TunnelDelay())
+					switch clientStatus.client.TunnelStatus() {
+					case utils.STATUS_CONNECTED:
+						setPingLabel(clientStatus.client.TunnelDelay())
+					case utils.STATUS_INIT:
+						addrLabel.SetText("Tunnel init")
+					case utils.STATUS_FAILED:
+						addrLabel.SetText("Tunnel failed")
+						clientStatus.client.Close() // close failed tunnel
+					case utils.STATUS_CLOSED:
+						addrLabel.SetText("Tunnel closed")
+					}
 				} else {
 					// once each two second
 					if !pingDelay {
