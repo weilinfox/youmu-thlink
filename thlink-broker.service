@@ -1,0 +1,13 @@
+[Unit]
+Description=ThLink Broker
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=5s
+ExecStart=/usr/bin/thlink-broker
+# ExecStart=/usr/bin/thlink-broker -u thlink.inuyasha.love:4646
+
+[Install]
+WantedBy=multi-user.target
