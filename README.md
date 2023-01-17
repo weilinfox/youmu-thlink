@@ -23,9 +23,9 @@ gtk 客户端则可以在菜单的 ``Network Discovery`` 自主选择客户端�
 
 初入东方对 0 萌新一只，感谢**飞翔君**带我一起玩！
 
-[![JetBrains Main Logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg)](https://www.jetbrains.com/) 感谢 [JetBrains](https://www.jetbrains.com/) 为本项目提供的开源开发许可证！
-
 ![screenshot-v0.0.10-amd64-windows](screenshot/screenshot-v0.0.10-amd64-windows.png)
+
+感谢 [JetBrains](https://www.jetbrains.com/) 为本项目提供的开源开发许可证！ [![JetBrains Main Logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg)](https://www.jetbrains.com/)
 
 ## 特性
 
