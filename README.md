@@ -126,6 +126,15 @@ $ yay -S thlink-broker
 
 直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
 
+若在 Wine 环境下，终端运行出现下面的报错：
+
+```
+Allocator::Info[system] total 134217728 / free 134282760 / use 504
+Allocator::Info[stl] total 33554432 / free 33619464 / use 504
+```
+
+先 ``cd`` 到游戏所在目录后，在重新尝试用 Wine 运行。
+
 ## 构建和部署
 
 Go >= 1.18
