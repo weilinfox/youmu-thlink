@@ -333,6 +333,13 @@ func (t *Tunnel) Serve(readFunc, writeFunc PluginCallback, plRoutine PluginGorou
 		}
 		loggerTunnel.Debug("Accept tcp connection from ", tcpConn.RemoteAddr().String())
 
+		err = tcpConn.SetNoDelay(true)
+		if err != nil {
+			tcpConn.Close()
+			t.tunnelStatus = STATUS_FAILED
+			return err
+		}
+
 		defer tcpConn.Close()
 
 		t.syncUdp(tcpConn, t.connection1.(*net.UDPConn), readFunc, writeFunc, plRoutine, false, false)
