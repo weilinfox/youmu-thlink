@@ -419,6 +419,7 @@ func (h *Hyouibana) GoroutineFunc(tunnelConn interface{}, conn *net.UDPConn) {
 				switch h.MatchStatus {
 
 				case MATCH_WAIT_155, MATCH_SPECT_ERROR_155:
+					connSucc = time.Now()
 
 				default:
 					timeDiff := time.Now().UnixMilli() - h.timeId
@@ -459,6 +460,7 @@ func (h *Hyouibana) GoroutineFunc(tunnelConn interface{}, conn *net.UDPConn) {
 				switch h.MatchStatus {
 
 				case MATCH_WAIT_155:
+					connSucc = time.Now()
 
 				case MATCH_ACCEPT_155:
 					specData := append([]byte{byte(INIT_155)}, th155id[:]...)
