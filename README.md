@@ -11,7 +11,7 @@
 
 本质上是个支持 UDP 的端口转发器， thlink 客户端和 thlink 服务端之间使用可选的 QUIC 和 TCP 传输。
 
-thlink 客户端以非想天则插件的形式实现独立于对战双方的观战， thlink 客户端将从对战双方预取观战数据，然后拦截并回应来自观战客户端的请求。
+thlink 客户端以非想天则/凭依华插件的形式实现独立于对战双方的观战， thlink 客户端将从对战双方预取观战数据，然后拦截并回应来自观战客户端的请求。
 
 为了使客户端能够在连接任意一个服务端的情况下获知所有存在于该网络的服务端，推荐将所有服务端连接成树状， ``broker -u hostname:port`` 
 将指定本服务端连接到另一个服务端的地址。这样一来命令行客户端可以传入 ``-a`` 来自动选择延迟最低的服务端， 
@@ -35,11 +35,12 @@ gtk 客户端则可以在菜单的 ``Network Discovery`` 自主选择客户端�
 4. 可配置的监听端口和服务器地址，方便自搭建
 5. 支持去中心化的多服务器结构
 6. 支持非想天则观战，观战支持的原理见 [hisoutensoku-spectacle](https://github.com/weilinfox/youmu-hisoutensoku-spectacle)
-7. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
-8. 符合习惯的命令行客户端和还算易用的 gtk3 图形客户端
-9. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
-10. 代码乱七八糟的，就是说，这个东西，被我写得很糟糕
-11. 我的英文很差很差，注释将就看吧别来打我（缩）
+7. 支持凭依华观战，观战支持的原理见 [hyouibana-spectacle](https://github.com/weilinfox/youmu-hyouibana-spectacle)
+8. 使用 [LZW](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch) 压缩，节约少量带宽
+9. 符合习惯的命令行客户端和还算易用的 gtk3 图形客户端
+10. Linux 下以 [AppImage](https://appimage.org/) 格式发布图形客户端
+11. 代码乱七八糟的，就是说，这个东西，被我写得很糟糕
+12. 我的英文很差很差，注释将就看吧别来打我（缩）
 
 ## TODO
 
@@ -126,14 +127,14 @@ $ yay -S thlink-broker
 
 直接在游戏内联机即可，主机默认端口为 ``10800`` 。将 thlink 设置成一样的配置，客机输入 thlink 返回的 IP 。
 
-若在 Wine 环境下，终端运行出现下面的报错：
+若在 Wine 环境下，终端运行 ``th155.exe`` 在输出下面的内容一次后退出：
 
 ```
 Allocator::Info[system] total 134217728 / free 134282760 / use 504
 Allocator::Info[stl] total 33554432 / free 33619464 / use 504
 ```
 
-先 ``cd`` 到游戏所在目录后，在重新尝试用 Wine 运行。
+注意这不是报错，只是单纯的症状，不知道为啥 ``th155.exe`` 没有产生任何错误信息。此时只要先 ``cd`` 到游戏所在目录，再重新尝试运行。
 
 ## 构建和部署
 

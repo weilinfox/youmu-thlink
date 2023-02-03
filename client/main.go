@@ -90,6 +90,9 @@ func main() {
 		h := client.NewHisoutensoku()
 		err = c.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc, h.SetQuitFlag)
 	case 155:
+		logger.Info("Append th15.5 hyouibana plugin")
+		h := client.NewHyouibana()
+		err = c.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc, h.SetQuitFlag)
 	default:
 		err = c.Serve(nil, nil, nil, nil)
 	}

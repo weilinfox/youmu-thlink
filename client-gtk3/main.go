@@ -327,9 +327,9 @@ func onAppActivate(app *gtk.Application) {
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create plugin radio box.")
 	}
-	pluginRadioOff, err := gtk.RadioButtonNewWithLabelFromWidget(nil, "Off")
+	pluginRadioOff, err := gtk.RadioButtonNewWithLabelFromWidget(nil, "OFF")
 	if err != nil {
-		logger.WithError(err).Fatal("Could not create plugin radio button Off.")
+		logger.WithError(err).Fatal("Could not create plugin radio button OFF.")
 	}
 	pluginRadioOff.Connect("toggled", func(r *gtk.RadioButton) {
 		if r.GetActive() {
@@ -339,7 +339,7 @@ func onAppActivate(app *gtk.Application) {
 		}
 	})
 	pluginRadioBox.Add(pluginRadioOff)
-	pluginRadio123, err := gtk.RadioButtonNewWithLabelFromWidget(pluginRadioOff, "th123")
+	pluginRadio123, err := gtk.RadioButtonNewWithLabelFromWidget(pluginRadioOff, "TH123")
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create plugin radio button 123.")
 	}
@@ -351,6 +351,18 @@ func onAppActivate(app *gtk.Application) {
 		}
 	})
 	pluginRadioBox.Add(pluginRadio123)
+	pluginRadio155, err := gtk.RadioButtonNewWithLabelFromWidget(pluginRadio123, "TH155")
+	if err != nil {
+		logger.WithError(err).Fatal("Could not create plugin radio button 155.")
+	}
+	pluginRadio155.Connect("toggled", func(r *gtk.RadioButton) {
+		if r.GetActive() {
+			clientStatus.pluginNum = 155
+			clientStatus.userConfigChange = true
+			logger.Debug("Plugin change to 155")
+		}
+	})
+	pluginRadioBox.Add(pluginRadio155)
 	pluginRadioBox.SetHAlign(gtk.ALIGN_CENTER)
 
 	// peer address label
@@ -408,6 +420,12 @@ func onAppActivate(app *gtk.Application) {
 			case 123:
 				logger.Info("Append th12.3 hisoutensoku plugin")
 				h := client.NewHisoutensoku()
+				clientStatus.plugin = h
+				err = clientStatus.client.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc, h.SetQuitFlag)
+
+			case 155:
+				logger.Info("Append th15.5 hyouibana plugin")
+				h := client.NewHyouibana()
 				clientStatus.plugin = h
 				err = clientStatus.client.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc, h.SetQuitFlag)
 
@@ -813,15 +831,20 @@ func onAppActivate(app *gtk.Application) {
 		for {
 
 			if clientStatus.client.Serving() {
+
 				if clientStatus.plugin != nil {
+
 					switch p := clientStatus.plugin.(type) {
+
 					case *client.Hisoutensoku:
 						switch p.PeerStatus {
+
 						case client.SUCCESS_123:
 							glib.IdleAdd(func() bool {
 								statusLabel.SetText("th12.3 game loaded")
 								return false
 							})
+
 						case client.BATTLE_123:
 							glib.IdleAdd(func() bool {
 								delay := float64(p.GetReplayDelay().Nanoseconds()) / 1000000
@@ -832,11 +855,13 @@ func onAppActivate(app *gtk.Application) {
 									fmt.Sprintf("%.2f ms", delay))
 								return false
 							})
+
 						case client.BATTLE_WAIT_ANOTHER_123:
 							glib.IdleAdd(func() bool {
 								statusLabel.SetText(fmt.Sprintf("th12.3 game waiting | %d spectator(s)", p.GetSpectatorCount()))
 								return false
 							})
+
 						default:
 							glib.IdleAdd(func() bool {
 								tv, _, _ := clientStatus.client.Version()
@@ -848,8 +873,50 @@ func onAppActivate(app *gtk.Application) {
 								return false
 							})
 						}
+
+					case *client.Hyouibana:
+						switch p.MatchStatus {
+
+						case client.MATCH_ACCEPT_155:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText("th15.5 game ongoing")
+								return false
+							})
+
+						case client.MATCH_SPECT_ACK_155, client.MATCH_SPECT_INIT_155:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText("th15.5 game ask for spectate")
+								return false
+							})
+
+						case client.MATCH_SPECT_SUCCESS_155:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText(fmt.Sprintf("th12.3 game ongoing | %d spectator(s)", p.GetSpectatorCount()))
+								return false
+							})
+
+						case client.MATCH_SPECT_ERROR_155:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText("th12.3 game ongoing | spectating disabled")
+								return false
+							})
+
+						default:
+							glib.IdleAdd(func() bool {
+								tv, _, _ := clientStatus.client.Version()
+								if tv == clientStatus.brokerTVersion {
+									statusLabel.SetText("th15.5 game not started")
+								} else {
+									statusLabel.SetText("Plugin alert! Server is v" + clientStatus.brokerVersion + "-" + strconv.Itoa(int(clientStatus.brokerTVersion)))
+								}
+								return false
+							})
+						}
+
 					}
+
 				} else {
+
 					glib.IdleAdd(func() bool {
 						tv, _, _ := clientStatus.client.Version()
 						if tv == clientStatus.brokerTVersion {
@@ -859,8 +926,11 @@ func onAppActivate(app *gtk.Application) {
 						}
 						return false
 					})
+
 				}
+
 			} else {
+
 				glib.IdleAdd(func() bool {
 					tv, _, _ := clientStatus.client.Version()
 					if tv == clientStatus.brokerTVersion {
@@ -870,6 +940,7 @@ func onAppActivate(app *gtk.Application) {
 					}
 					return false
 				})
+
 			}
 
 			time.Sleep(time.Millisecond * 66)
