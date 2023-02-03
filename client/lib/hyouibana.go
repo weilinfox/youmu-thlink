@@ -327,13 +327,13 @@ func (h *Hyouibana) ReadFunc(orig []byte) (bool, []byte) {
 					if mid == 0 {
 						if h.matchId == 0 {
 							break
-						} /*else if h.MatchStatus == MATCH_WAIT_155 { // impossible to reach
+						} else if h.MatchStatus == MATCH_WAIT_155 { // TODO: impossible to reach this code block
 							// HOST_QUIT
 							logger155.Info("Quit spectator")
 							repData = append(repData, []byte{byte(HOST_QUIT_155), 0x00, 0x00, 0x00,
 								byte(h.matchRandId), byte(h.matchRandId >> 8), byte(h.matchRandId >> 16), byte(h.matchRandId >> 24),
 								0x00, 0x00, 0x00, 0x00}...)
-						}*/else {
+						} else {
 							// GAME_REPLAY_MATCH
 							repData = append(repData, h.matchInfo...)
 						}
