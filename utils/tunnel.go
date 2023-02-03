@@ -286,7 +286,12 @@ func (t *Tunnel) Close() {
 
 }
 
-// PluginCallback read/write DATA, in udp tunnel, first bit is udp multiplex id
+// PluginCallback read/write DATA, in udp tunnel, first byte is udp multiplex id
+// return value: reply and data;
+// if data is nil or length of it is 0, stop sending;
+// if reply is false, the data will continue to send (data could be modified);
+// if reply is true, the data will reverse its send direction, and send it;
+// caution that the first byte of data is udp multiplex id.
 type PluginCallback func([]byte) (bool, []byte)
 
 // PluginGoroutine goroutine for plugin
