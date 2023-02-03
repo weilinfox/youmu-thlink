@@ -274,7 +274,7 @@ func (h *Hyouibana) ReadFunc(orig []byte) (bool, []byte) {
 
 					return true, errData
 
-				case 0x71: // spectacle
+				case 0x70, 0x71: // spectacle
 					var repData []byte
 					switch h.MatchStatus {
 
