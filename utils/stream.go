@@ -79,6 +79,7 @@ const (
 	NET_INFO_UPDATE                 // NET_INFO_UPDATE add or delete broker address in net
 	BROKER_INFO                     // BROKER_INFO info of this broker
 	VERSION                         // VERSION of tunnel
+	RUBBISH                         // RUBBISH nobody care about this package
 )
 
 // NewDataStream return a empty data stream parser
