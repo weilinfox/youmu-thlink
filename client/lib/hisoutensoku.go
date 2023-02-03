@@ -471,6 +471,7 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 	logger123.Info("Th123 plugin goroutine start")
 	defer logger123.Info("Th123 plugin goroutine quit")
 
+bigLoop:
 	for {
 		if h.PeerStatus == BATTLE_123 {
 			switch h.repReqStatus {
@@ -514,7 +515,7 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 				}
 				if err != nil {
 					logger123.WithError(err).Error("Th123 send GAME_REPLAY_REQUEST error")
-					break
+					break bigLoop
 				}
 
 				h.repReqStatus = SENT0_123
