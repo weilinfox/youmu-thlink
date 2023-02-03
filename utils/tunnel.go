@@ -295,6 +295,8 @@ func (t *Tunnel) Close() {
 type PluginCallback func([]byte) (bool, []byte)
 
 // PluginGoroutine goroutine for plugin
+// parameters are a quic.Stream or a *net.TCPConn and a *net.UDPConn,
+// which are two sides of a Tunnel
 type PluginGoroutine func(interface{}, *net.UDPConn)
 
 // Serve wait for connection and sync data
