@@ -34,3 +34,8 @@ func GenerateTLSConfig() (*tls.Config, error) {
 		NextProtos:   []string{nextProto},
 	}, nil
 }
+
+// LittleIndia2Int cover little india byte array into int
+func LittleIndia2Int(b []byte) int {
+	return int(b[0]) | int(b[1])<<8 | int(b[2])<<16 | int(b[3])<<24
+}

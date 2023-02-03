@@ -18,7 +18,7 @@ func main() {
 	tunnelType := flag.String("t", client.DefaultTunnelType, "tunnel type, support tcp and quic")
 	autoSelect := flag.Bool("a", true, "auto select broker in network with lowest latency")
 	noAutoSelect := flag.Bool("na", false, "DO NOT auto select broker in network with lowest latency (override -a)")
-	plugin := flag.Int("l", 0, "enable plugin, 123 for hisoutensoku spectacle support")
+	plugin := flag.Int("l", 0, "enable plugin, 123 for hisoutensoku spectacle support, 155 for hyouibana spectacle support")
 	debug := flag.Bool("d", false, "debug mode")
 
 	flag.Parse()
@@ -88,9 +88,10 @@ func main() {
 	case 123:
 		logger.Info("Append th12.3 hisoutensoku plugin")
 		h := client.NewHisoutensoku()
-		err = c.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc)
+		err = c.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc, h.SetQuitFlag)
+	case 155:
 	default:
-		err = c.Serve(nil, nil, nil)
+		err = c.Serve(nil, nil, nil, nil)
 	}
 	if err != nil {
 		logger.WithError(err).Fatal("Serve client error")

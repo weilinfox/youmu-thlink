@@ -12,7 +12,7 @@ import (
 
 	"github.com/weilinfox/youmu-thlink/utils"
 
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
 

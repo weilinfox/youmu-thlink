@@ -10,7 +10,7 @@ import (
 
 	"github.com/weilinfox/youmu-thlink/utils"
 
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -604,7 +604,7 @@ func handleUdpTunnel(tunnel *utils.Tunnel) {
 	defer logger.Infof("End udp peer %d-%d", port1, port2)
 	defer tunnel.Close()
 
-	err := tunnel.Serve(nil, nil, nil)
+	err := tunnel.Serve(nil, nil, nil, nil)
 	if err != nil {
 		logger.WithError(err).Error("Tunnel serve error")
 	}

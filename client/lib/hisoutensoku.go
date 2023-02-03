@@ -10,7 +10,7 @@ import (
 
 	"github.com/weilinfox/youmu-thlink/utils"
 
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -111,6 +111,8 @@ type Hisoutensoku struct {
 	repReqTime     time.Time         // request send time
 	repReqDelay    time.Duration     // delay between GAME_REPLAY_REQUEST and GAME_REPLAY package
 	spectatorCount int               // spectator counter
+
+	quitFlag bool // plugin quit flag
 }
 
 var logger123 = logrus.WithField("Hisoutensoku", "internal")
@@ -124,6 +126,7 @@ func NewHisoutensoku() *Hisoutensoku {
 		repReqStatus:   INIT_123,
 		repReqDelay:    time.Second,
 		spectatorCount: 0,
+		quitFlag:       false,
 	}
 }
 
@@ -525,6 +528,10 @@ bigLoop:
 			}
 		}
 
+		if h.quitFlag {
+			break
+		}
+
 		// 15 request per second
 		time.Sleep(time.Millisecond * 66)
 	}
@@ -536,4 +543,8 @@ func (h *Hisoutensoku) GetReplayDelay() time.Duration {
 
 func (h *Hisoutensoku) GetSpectatorCount() int {
 	return h.spectatorCount
+}
+
+func (h *Hisoutensoku) SetQuitFlag() {
+	h.quitFlag = true
 }

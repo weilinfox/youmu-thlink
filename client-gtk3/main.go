@@ -409,11 +409,11 @@ func onAppActivate(app *gtk.Application) {
 				logger.Info("Append th12.3 hisoutensoku plugin")
 				h := client.NewHisoutensoku()
 				clientStatus.plugin = h
-				err = clientStatus.client.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc)
+				err = clientStatus.client.Serve(h.ReadFunc, h.WriteFunc, h.GoroutineFunc, h.SetQuitFlag)
 
 			default:
 				clientStatus.plugin = nil
-				err = clientStatus.client.Serve(nil, nil, nil)
+				err = clientStatus.client.Serve(nil, nil, nil, nil)
 
 			}
 			if err != nil {
@@ -941,7 +941,7 @@ func showAboutDialog() {
 	about.SetVersion(verText)
 	about.SetAuthors([]string{"桜風の狐"})
 	about.SetCopyright("https://github.com/gotk3/gotk3 ISC License\n" +
-		"https://github.com/lucas-clemente/quic-go MIT License\n" +
+		"https://github.com/quic-go/quic-go MIT License\n" +
 		"https://github.com/sirupsen/logrus MIT License\n" +
 		"https://github.com/weilinfox/youmu-thlink/glg-go GPL-3.0 License\n" +
 		"https://github.com/weilinfox/youmu-thlink AGPL-3.0 License\n" +
