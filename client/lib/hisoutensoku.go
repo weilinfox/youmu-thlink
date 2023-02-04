@@ -17,52 +17,52 @@ import (
 type type123pkg byte
 
 const (
-	HELLO type123pkg = iota + 1
-	PUNCH
-	OLLEH
-	CHAIN
-	INIT_REQUEST
-	INIT_SUCCESS
-	INIT_ERROR
-	REDIRECT
-	QUIT      = iota + 3
-	HOST_GAME = iota + 4
-	CLIENT_GAME
-	SOKUROLL_TIME = iota + 5
-	SOKUROLL_TIME_ACK
-	SOKUROLL_STATE
-	SOKUROLL_SETTINGS
-	SOKUROLL_SETTINGS_ACK
+	HELLO_123             type123pkg = iota + 1 // 0x01
+	PUNCH_123                                   // 0x02
+	OLLEH_123                                   // 0x03
+	CHAIN_123                                   // 0x04
+	INIT_REQUEST_123                            // 0x05
+	INIT_SUCCESS_123                            // 0x06
+	INIT_ERROR_123                              // 0x07
+	REDIRECT_123                                // 0x08
+	QUIT_123              type123pkg = iota + 3 // 0x0b
+	HOST_GAME_123         type123pkg = iota + 4 // 0x0d
+	CLIENT_GAME_123                             // 0x0e
+	SOKUROLL_TIME         type123pkg = iota + 5 // 0x10
+	SOKUROLL_TIME_ACK                           // 0x11
+	SOKUROLL_STATE                              // 0x12
+	SOKUROLL_SETTINGS                           // 0x13
+	SOKUROLL_SETTINGS_ACK                       // 0x14
 )
 
 type data123pkg byte
 
 const (
-	GAME_LOADED data123pkg = iota + 1
-	GAME_LOADED_ACK
-	GAME_INPUT
-	GAME_MATCH
-	GAME_MATCH_ACK
-	GAME_MATCH_REQUEST data123pkg = iota + 3
-	GAME_REPLAY
-	GAME_REPLAY_REQUEST data123pkg = iota + 4
+	GAME_LOADED_123         data123pkg = iota + 1 // 0x01
+	GAME_LOADED_ACK_123                           // 0x02
+	GAME_INPUT_123                                // 0x03
+	GAME_MATCH_123                                // 0x04
+	GAME_MATCH_ACK_123                            // 0x05
+	GAME_MATCH_REQUEST_123  data123pkg = iota + 3 // 0x08
+	GAME_REPLAY_123                               // 0x09
+	GAME_REPLAY_REQUEST_123 data123pkg = iota + 4 // 0x0b
 )
 
 type Status123peer byte
 
 const (
-	INACTIVE Status123peer = iota
-	SUCCESS
-	BATTLE
-	BATTLE_WAIT_ANOTHER
+	INACTIVE_123 Status123peer = iota
+	SUCCESS_123
+	BATTLE_123
+	BATTLE_WAIT_ANOTHER_123
 )
 
 type spectate123type byte
 
 const (
-	NOSPECTATE             spectate123type = 0x00
-	SPECTATE               spectate123type = 0x10
-	SPECTATE_FOR_SPECTATOR spectate123type = 0x11
+	NOSPECTATE_123             spectate123type = 0x00
+	SPECTATE_123               spectate123type = 0x10
+	SPECTATE_FOR_SPECTATOR_123 spectate123type = 0x11
 )
 
 type hisoutensokuData struct {
@@ -95,11 +95,11 @@ func newHisoutensokuData() *hisoutensokuData {
 type status123req byte
 
 const (
-	INIT status123req = iota
-	SEND
-	SENT0
-	SENT1
-	SEND_AGAIN
+	INIT_123 status123req = iota
+	SEND_123
+	SENT0_123
+	SENT1_123
+	SEND_AGAIN_123
 )
 
 type Hisoutensoku struct {
@@ -118,10 +118,10 @@ var logger123 = logrus.WithField("Hisoutensoku", "internal")
 // NewHisoutensoku new Hisoutensoku spectating server
 func NewHisoutensoku() *Hisoutensoku {
 	return &Hisoutensoku{
-		PeerStatus:     INACTIVE,
+		PeerStatus:     INACTIVE_123,
 		peerData:       newHisoutensokuData(),
 		gameId:         make(map[byte][16]byte),
-		repReqStatus:   INIT,
+		repReqStatus:   INIT_123,
 		repReqDelay:    time.Second,
 		spectatorCount: 0,
 	}
@@ -132,13 +132,13 @@ func NewHisoutensoku() *Hisoutensoku {
 func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 
 	switch type123pkg(orig[1]) {
-	case INIT_SUCCESS:
+	case INIT_SUCCESS_123:
 		if len(orig)-1 == 81 {
 
 			switch spectate123type(orig[6]) {
-			case NOSPECTATE, SPECTATE:
+			case NOSPECTATE_123, SPECTATE_123:
 				// init success
-				h.peerData.Spectator = spectate123type(orig[6]) == SPECTATE
+				h.peerData.Spectator = spectate123type(orig[6]) == SPECTATE_123
 				for i := 14; i <= 46; i++ {
 					if orig[i] == 0x00 || i == 46 {
 						h.peerData.HostProf = string(orig[14:i])
@@ -157,12 +157,12 @@ func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 					h.peerData.ClientProf, " swr disabled ", h.peerData.SwrDisabled)
 
 				h.peerId = orig[0]
-				h.PeerStatus = SUCCESS
+				h.PeerStatus = SUCCESS_123
 				h.peerData.MatchId = 0
 
 				logger123.Info("Th123 peer init success: spectator=", h.peerData.Spectator)
 
-			case SPECTATE_FOR_SPECTATOR:
+			case SPECTATE_FOR_SPECTATOR_123:
 				logger123.Warn("INIT_SUCCESS type SPECTATE_FOR_SPECTATOR appears here?")
 			default:
 				logger123.Warn("INIT_SUCCESS spectacle type cannot recognize")
@@ -172,25 +172,25 @@ func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 			logger123.Warn("INIT_SUCCESS with strange length ", len(orig)-1)
 		}
 
-	case QUIT:
+	case QUIT_123:
 		if len(orig)-1 == 1 {
 			logger123.Info("Th123 peer quit")
 			if orig[0] == h.peerId {
-				h.PeerStatus = INACTIVE
+				h.PeerStatus = INACTIVE_123
 			}
 		} else {
 			logger123.Warn("QUIT with strange length ", len(orig)-1)
 		}
 
-	case CLIENT_GAME:
+	case CLIENT_GAME_123:
 		logger123.Warn("CLIENT_GAME should not appear here right? ", orig[1:])
 
-	case HOST_GAME:
+	case HOST_GAME_123:
 		switch data123pkg(orig[2]) {
-		case GAME_LOADED_ACK:
+		case GAME_LOADED_ACK_123:
 			if orig[3] == 0x05 {
 				logger123.Info("Th123 battle loaded")
-				h.PeerStatus = BATTLE
+				h.PeerStatus = BATTLE_123
 			}
 		}
 	}
@@ -203,25 +203,25 @@ func (h *Hisoutensoku) WriteFunc(orig []byte) (bool, []byte) {
 func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 
 	switch type123pkg(orig[1]) {
-	case HELLO:
+	case HELLO_123:
 		if len(orig)-1 == 37 {
-			if h.PeerStatus > SUCCESS && orig[0] != h.peerId {
-				return true, []byte{orig[0], byte(OLLEH)}
+			if h.PeerStatus > SUCCESS_123 && orig[0] != h.peerId {
+				return true, []byte{orig[0], byte(OLLEH_123)}
 			}
 		} else {
 			logger123.Warn("HELLO with strange length ", len(orig)-1)
 		}
 
-	case CHAIN:
+	case CHAIN_123:
 		if len(orig)-1 == 5 {
-			if h.PeerStatus > SUCCESS && orig[0] != h.peerId {
+			if h.PeerStatus > SUCCESS_123 && orig[0] != h.peerId {
 				return true, []byte{orig[0], 4, 4, 0, 0, 0}
 			}
 		} else {
 			logger123.Warn("CHAIN with strange length ", len(orig)-1)
 		}
 
-	case INIT_REQUEST:
+	case INIT_REQUEST_123:
 		if len(orig)-1 == 65 {
 
 			var gameId [16]byte
@@ -231,16 +231,16 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 
 			h.gameId[orig[0]] = gameId
 
-			if h.PeerStatus > SUCCESS && orig[0] != h.peerId {
+			if h.PeerStatus > SUCCESS_123 && orig[0] != h.peerId {
 				// from spectator
 				if (orig[26] == 0x00 && h.peerData.Spectator && h.peerData.MatchId == 0) || orig[26] == 0x01 {
 					// replay request but not start or match request
 					logger123.Debug("INIT_REQUEST for game from spectator")
-					return true, []byte{orig[0], byte(INIT_ERROR), 1, 0, 0, 0}
+					return true, []byte{orig[0], byte(INIT_ERROR_123), 1, 0, 0, 0}
 				} else if orig[26] == 0x00 && !h.peerData.Spectator {
 					// not allow spectator
 					logger123.Info("Th123 not allow spectator")
-					return true, []byte{orig[0], byte(INIT_ERROR), 0, 0, 0, 0}
+					return true, []byte{orig[0], byte(INIT_ERROR_123), 0, 0, 0, 0}
 				} else if orig[26] == 0x00 && h.peerData.MatchId > 0 {
 					// replay request and match started
 					logger123.Info("Th123 spectacle int request from spectator")
@@ -252,12 +252,12 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 			logger123.Warn("INIT_REQUEST with strange length ", len(orig)-1)
 		}
 
-	case INIT_SUCCESS:
+	case INIT_SUCCESS_123:
 		if len(orig)-1 == 81 {
 			switch spectate123type(orig[6]) {
-			case SPECTATE_FOR_SPECTATOR:
+			case SPECTATE_FOR_SPECTATOR_123:
 				copy(h.peerData.InitSuccessPkg[:], orig[1:])
-				h.repReqStatus = SEND
+				h.repReqStatus = SEND_123
 				logger123.Info("Th123 spectacle INIT_SUCCESS")
 
 				return false, nil
@@ -266,12 +266,12 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 			logger123.Warn("INIT_SUCCESS with strange length ", len(orig)-1)
 		}
 
-	case QUIT:
+	case QUIT_123:
 		if len(orig)-1 == 1 {
 			logger123.Info("Th123 peer quit")
 			if orig[0] == h.peerId {
-				h.PeerStatus = INACTIVE
-				h.repReqStatus = INIT
+				h.PeerStatus = INACTIVE_123
+				h.repReqStatus = INIT_123
 			} else {
 				return false, nil
 			}
@@ -279,9 +279,9 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 			logger123.Warn("QUIT with strange length ", len(orig)-1)
 		}
 
-	case HOST_GAME:
+	case HOST_GAME_123:
 		switch data123pkg(orig[2]) {
-		case GAME_MATCH:
+		case GAME_MATCH_123:
 			if len(orig)-1 == 99 {
 				if orig[0] == h.peerId {
 					// game match data
@@ -294,7 +294,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 					h.peerData.ReplayData[orig[99]] = make([]uint16, 1) // 填充一个 garbage
 					h.peerData.ReplayEnd[orig[99]] = false
 
-					h.repReqStatus = SEND
+					h.repReqStatus = SEND_123
 
 					logger123.Info("Th123 new match ", orig[99])
 
@@ -304,7 +304,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 				logger123.Warn("HOST_GAME GAME_MATCH with strange length ", len(orig)-1)
 			}
 
-		case GAME_REPLAY:
+		case GAME_REPLAY_123:
 			if orig[0] == h.peerId {
 				// game replay data
 				if len(orig) > 4 && len(orig)-4 == int(orig[3]) {
@@ -348,12 +348,12 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 									if endFrameId != 0 && endFrameId == frameId && !h.peerData.ReplayEnd[ans[8]] {
 										logger123.Info("Th123 match end: ", ans[8])
 										h.peerData.ReplayEnd[ans[8]] = true
-										h.PeerStatus = BATTLE_WAIT_ANOTHER
+										h.PeerStatus = BATTLE_WAIT_ANOTHER_123
 									}
 
 									h.repReqTime = time.Time{}
 									h.repReqDelay = timeDelay
-									h.repReqStatus = SEND
+									h.repReqStatus = SEND_123
 								} else {
 									logger123.Warn("Replay data package drop: frame id ", frameId, " length ", ans[9])
 								}
@@ -373,21 +373,21 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 			return false, nil
 		}
 
-	case CLIENT_GAME:
+	case CLIENT_GAME_123:
 		switch data123pkg(orig[2]) {
-		case GAME_LOADED_ACK:
+		case GAME_LOADED_ACK_123:
 			if orig[3] == 0x05 {
 				logger123.Info("Th123 battle loaded")
-				h.PeerStatus = BATTLE
+				h.PeerStatus = BATTLE_123
 			}
 
-		case GAME_REPLAY_REQUEST:
+		case GAME_REPLAY_REQUEST_123:
 			if len(orig)-1 == 7 {
 
 				// game replay request from spectator
 				frameId := int(orig[3]) | int(orig[4])<<8 | int(orig[5])<<16 | int(orig[6])<<24
 				if frameId == 0xffffffff || orig[7] < h.peerData.MatchId {
-					data := []byte{orig[0], byte(HOST_GAME), byte(GAME_MATCH)}
+					data := []byte{orig[0], byte(HOST_GAME_123), byte(GAME_MATCH_123)}
 					data = append(data, h.peerData.HostInfo[:]...)
 					data = append(data, h.peerData.ClientInfo[:]...)
 					data = append(data, h.peerData.StageId)
@@ -403,7 +403,7 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 
 				} else if orig[7] == h.peerData.MatchId {
 
-					data := []byte{orig[0], byte(HOST_GAME), byte(GAME_REPLAY)}
+					data := []byte{orig[0], byte(HOST_GAME_123), byte(GAME_REPLAY_123)}
 
 					// replay data
 					repData := h.peerData.ReplayData[h.peerData.MatchId]
@@ -448,10 +448,10 @@ func (h *Hisoutensoku) ReadFunc(orig []byte) (bool, []byte) {
 					data = append(data, byte(zlibData.Len()))
 					data = append(data, zlibData.Bytes()...)
 
-					if endFrameId == sendFrameId && h.PeerStatus == INACTIVE {
+					if endFrameId == sendFrameId && h.PeerStatus == INACTIVE_123 {
 						// let spectator quit
 						logger123.Info("Th123 quit spectator")
-						return true, []byte{orig[0], byte(QUIT)}
+						return true, []byte{orig[0], byte(QUIT_123)}
 					}
 					return true, data
 
@@ -472,16 +472,16 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 	defer logger123.Info("Th123 plugin goroutine quit")
 
 	for {
-		if h.PeerStatus == BATTLE {
+		if h.PeerStatus == BATTLE_123 {
 			switch h.repReqStatus {
-			case INIT:
+			case INIT_123:
 				if h.peerData.Spectator {
 					gameId := h.gameId[h.peerId]
-					requestData := append([]byte{h.peerId, byte(INIT_REQUEST)}, gameId[:]...) // INIT_REQUEST and game id
-					requestData = append(requestData, make([]byte, 8)...)                     // garbage
-					requestData = append(requestData, 0x00)                                   // spectacle request
-					requestData = append(requestData, 0x00)                                   //  data length 0
-					requestData = append(requestData, make([]byte, 38)...)                    // make it 65 bytes long
+					requestData := append([]byte{h.peerId, byte(INIT_REQUEST_123)}, gameId[:]...) // INIT_REQUEST and game id
+					requestData = append(requestData, make([]byte, 8)...)                         // garbage
+					requestData = append(requestData, 0x00)                                       // spectacle request
+					requestData = append(requestData, 0x00)                                       //  data length 0
+					requestData = append(requestData, make([]byte, 38)...)                        // make it 65 bytes long
 
 					var err error
 					switch conn := tunnelConn.(type) {
@@ -497,10 +497,10 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 					logger123.Info("Th123 send spectacle INIT_REQUEST")
 				}
 
-			case SEND, SEND_AGAIN:
+			case SEND_123, SEND_AGAIN_123:
 				getId := len(h.peerData.ReplayData[h.peerData.MatchId]) - 1
 
-				requestData := []byte{h.peerId, byte(CLIENT_GAME), byte(GAME_REPLAY_REQUEST),
+				requestData := []byte{h.peerId, byte(CLIENT_GAME_123), byte(GAME_REPLAY_REQUEST_123),
 					byte(getId), byte(getId >> 8), byte(getId >> 16), byte(getId >> 24), h.peerData.MatchId}
 
 				h.repReqTime = time.Now()
@@ -517,9 +517,9 @@ func (h *Hisoutensoku) GoroutineFunc(tunnelConn interface{}, _ *net.UDPConn) {
 					break
 				}
 
-				h.repReqStatus = SENT0
+				h.repReqStatus = SENT0_123
 
-			case SENT0, SENT1:
+			case SENT0_123, SENT1_123:
 				h.repReqStatus++
 			}
 		}

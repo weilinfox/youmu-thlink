@@ -212,7 +212,7 @@ func onAppActivate(app *gtk.Application) {
 		switch p := clientStatus.plugin.(type) {
 		case *client.Hisoutensoku:
 			clientStatus.pluginDelayShow = true
-			if p.PeerStatus == client.BATTLE {
+			if p.PeerStatus == client.BATTLE_123 {
 				clientStatus.pluginDelay[clientStatus.pluginDelayPos] = p.GetReplayDelay()
 				clientStatus.pluginDelayPos = (clientStatus.pluginDelayPos + 1) % 40
 				if clientStatus.pluginDelayLen < 40 {
@@ -679,7 +679,7 @@ func onAppActivate(app *gtk.Application) {
 				if clientStatus.pluginDelayShow {
 					switch p := clientStatus.plugin.(type) {
 					case *client.Hisoutensoku:
-						if p.PeerStatus == client.BATTLE {
+						if p.PeerStatus == client.BATTLE_123 {
 							glg.GlgLineGraphDataSeriesAddValue(1, float64(p.GetReplayDelay().Nanoseconds())/1000000)
 						}
 					}
@@ -817,12 +817,12 @@ func onAppActivate(app *gtk.Application) {
 					switch p := clientStatus.plugin.(type) {
 					case *client.Hisoutensoku:
 						switch p.PeerStatus {
-						case client.SUCCESS:
+						case client.SUCCESS_123:
 							glib.IdleAdd(func() bool {
 								statusLabel.SetText("th12.3 game loaded")
 								return false
 							})
-						case client.BATTLE:
+						case client.BATTLE_123:
 							glib.IdleAdd(func() bool {
 								delay := float64(p.GetReplayDelay().Nanoseconds()) / 1000000
 								if delay > 9999 {
@@ -832,7 +832,7 @@ func onAppActivate(app *gtk.Application) {
 									fmt.Sprintf("%.2f ms", delay))
 								return false
 							})
-						case client.BATTLE_WAIT_ANOTHER:
+						case client.BATTLE_WAIT_ANOTHER_123:
 							glib.IdleAdd(func() bool {
 								statusLabel.SetText(fmt.Sprintf("th12.3 game waiting | %d spectator(s)", p.GetSpectatorCount()))
 								return false
