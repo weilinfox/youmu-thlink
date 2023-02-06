@@ -65,6 +65,8 @@ $ yay -S thlink-broker
 
 ## 客户端使用指导
 
+一份简单 GTK 图形客户端的指导：[传送门](https://blog.inuyasha.love/linuxeveryday/thlink.html)
+
 ### TH09
 
 作品名称：
