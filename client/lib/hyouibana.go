@@ -215,15 +215,19 @@ func (h *Hyouibana) WriteFunc(orig []byte) (bool, []byte) {
 			logger155.Warn("INIT_SUCCESS with strange length ", len(orig)-1)
 		}
 
-	case HOST_QUIT_155, CLIENT_QUIT_155:
-		/*if len(orig)-1 == 16 {
-			if h.matchRandId == utils.LittleIndia2Int(orig[5:9]) {
-				h.peerQuit = true
-				logger155.Info("Met HOST_QUIT/CLIENT_QUIT ", orig[1])
+	case HOST_QUIT_155:
+		if len(orig)-1 == 12 {
+			if h.matchId == 0 || h.MatchStatus == MATCH_SPECT_ERROR_155 {
+				h.MatchStatus = MATCH_WAIT_155
+				logger155.Info("Met HOST_QUIT and reset")
 			}
 		} else {
-			logger155.Warn("HOST_QUIT/CLIENT_QUIT　", orig[1], " with strange length ", len(orig)-1)
-		}*/
+			logger155.Warn("HOST_QUIT　", orig[1], " with strange length ", len(orig)-1)
+		}
+
+	case CLIENT_QUIT_155:
+		logger155.Warn("CLIENT_QUIT should not appear here")
+
 	}
 
 	return false, orig
@@ -311,7 +315,18 @@ func (h *Hyouibana) ReadFunc(orig []byte) (bool, []byte) {
 				logger155.Warn("INIT_REQUEST　with strange length ", len(orig)-1)
 			}
 
+		case HOST_QUIT_155:
+			logger155.Warn("HOST_QUIT should not appear here")
+
 		case CLIENT_QUIT_155:
+			if len(orig)-1 == 12 {
+				if h.matchId == 0 || h.MatchStatus == MATCH_SPECT_ERROR_155 {
+					h.MatchStatus = MATCH_WAIT_155
+					logger155.Info("Met CLIENT_QUIT and reset")
+				}
+			} else {
+				logger155.Warn("CLIENT_QUIT　", orig[1], " with strange length ", len(orig)-1)
+			}
 
 		case CLIENT_GAME_155:
 			switch data155pkg(orig[3]) {
