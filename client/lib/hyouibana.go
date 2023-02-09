@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"compress/zlib"
-	"fmt"
 	"io"
 	"math"
 	"math/rand"
@@ -68,7 +67,7 @@ var th155SpecConf = [113]byte{0x9c, 0x00, 0x00, 0x00, 0x78, 0x9c, 0x45, 0xcd, 0x
 	0x66, 0xd3, 0x32, 0xc7, 0x20, 0x7c, 0x9d, 0xdd, 0xf7, 0x6d, 0x8c, 0x2e, 0x26, 0x41, 0xb9, 0x96, 0xaf, 0x37, 0x7b,
 	0x90, 0x17, 0xe6}
 
-func zlibDataDecode(l int, d []byte) string {
+func zlibDataDecodeError(l int, d []byte) string {
 	if len(d) < 3 || d[0] != 0x78 || d[1] != 0x9c {
 		return "NOT_ZLIB_DATA_ERROR"
 	}
@@ -114,20 +113,15 @@ func zlibDataDecode(l int, d []byte) string {
 				s = 0
 			}
 		case 4:
-			if i > 0 {
-				dataStr += fmt.Sprint(ans[i:j-4]) + ", "
-			}
-
 			nl := utils.LittleIndia2Int(ans[j : j+4])
 			i = j + 4 + nl
-			dataStr += string(ans[j+4:i]) + ":"
+			dataStr += string(ans[j+4:i]) + " "
 
 			s = 0
 		}
 
 		j++
 	}
-	dataStr += fmt.Sprint(ans[i : j-4])
 
 	return dataStr
 }
@@ -606,7 +600,7 @@ func (h *Hyouibana) GoroutineFunc(tunnelConn interface{}, conn *net.UDPConn) {
 					h.MatchStatus = MATCH_SPECT_ERROR_155
 					h.initErrorInfo = make([]byte, n-1)
 					copy(h.initErrorInfo, buf[1:n])
-					logger155.Info("Th155 plugin spectator get INIT_ERROR ", zlibDataDecode(utils.LittleIndia2Int(buf[16:20]), buf[20:n]))
+					logger155.Info("Th155 plugin spectator get INIT_ERROR with ", zlibDataDecodeError(utils.LittleIndia2Int(buf[16:20]), buf[20:n]))
 				} else {
 					logger155.Warn("INIT_ERROR with strange length ", n)
 				}
