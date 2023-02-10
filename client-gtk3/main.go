@@ -883,21 +883,27 @@ func onAppActivate(app *gtk.Application) {
 								return false
 							})
 
-						case client.MATCH_SPECT_ACK_155, client.MATCH_SPECT_INIT_155:
+						case client.MATCH_SPECT_ACK_155:
 							glib.IdleAdd(func() bool {
 								statusLabel.SetText("th15.5 game ask for spectate")
 								return false
 							})
 
+						case client.MATCH_SPECT_INIT_155:
+							glib.IdleAdd(func() bool {
+								statusLabel.SetText("th15.5 host no reply | spectating disabled")
+								return false
+							})
+
 						case client.MATCH_SPECT_SUCCESS_155:
 							glib.IdleAdd(func() bool {
-								statusLabel.SetText(fmt.Sprintf("th12.3 game ongoing | %d spectator(s)", p.GetSpectatorCount()))
+								statusLabel.SetText(fmt.Sprintf("th15.5 game ongoing | %d spectator(s)", p.GetSpectatorCount()))
 								return false
 							})
 
 						case client.MATCH_SPECT_ERROR_155:
 							glib.IdleAdd(func() bool {
-								statusLabel.SetText("th12.3 game ongoing | spectating disabled")
+								statusLabel.SetText("th15.5 game ongoing | spectating disabled")
 								return false
 							})
 
