@@ -190,7 +190,7 @@ go1.18 需要自行下载或构建。
 安装依赖（以 Debian 为例，水平有限，可能不全）
 
 ```shell
-$ sudo apt-get install libgtk-3-dev libcairo2-dev glib2.0-dev
+$ sudo apt-get install libgtk-3-dev libcairo2-dev glib2.0-dev zlib1g-dev
 ```
 
 构建：
@@ -226,7 +226,7 @@ $ mv ThLink_Client_Gtk-x86_64.AppImage thlink-client-gtk-amd64-linux.AppImage
 
 ```shell
 $ pacman -Syuu
-$ pacman -S mingw-w64-x86_64-gtk3 mingw-w64-x86_64-toolchain base-devel glib2-devel
+$ pacman -S mingw-w64-x86_64-gtk3 mingw-w64-x86_64-toolchain base-devel glib2-devel zlib-devel
 ```
 
 配置环境变量（根据实际情况修改），其中 ``/c/msys64/mingw64/bin`` 代表的是 Mingw64 gcc 所在目录， ``/c/Go/bin`` 则代表的是 Windows 的 go 所在目录：
