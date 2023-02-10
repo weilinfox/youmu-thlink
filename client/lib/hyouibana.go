@@ -3,17 +3,50 @@ package client
 import (
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"io"
 	"math"
 	"math/rand"
 	"net"
 	"time"
+	"unsafe"
 
 	"github.com/weilinfox/youmu-thlink/utils"
 
 	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
+
+/*
+#cgo pkg-config: zlib
+#include <stdlib.h>
+#include <string.h>
+#include <zlib.h>
+
+void zlib_encode(size_t len, const unsigned char *orig, size_t *retLen, unsigned char **ret)
+{
+	unsigned char enc[1024];
+	z_stream enc_stream;
+
+	enc_stream.zalloc = Z_NULL;
+	enc_stream.zfree = Z_NULL;
+	enc_stream.opaque = Z_NULL;
+
+	enc_stream.avail_in = (uInt)len;
+	enc_stream.next_in = (Bytef *)orig;
+	enc_stream.avail_out = (uInt)sizeof(enc);
+	enc_stream.next_out = (Bytef *)enc;
+
+	deflateInit(&enc_stream, Z_DEFAULT_COMPRESSION);
+	deflate(&enc_stream, Z_FINISH);
+	deflateEnd(&enc_stream);
+
+	*retLen = enc_stream.total_out;
+	*ret = (unsigned char *)malloc(sizeof(unsigned char) * enc_stream.total_out);
+	memcpy(*ret, enc, enc_stream.total_out);
+}
+*/
+import "C"
 
 var logger155 = logrus.WithField("Hyouibana", "internal")
 
@@ -59,13 +92,16 @@ const (
 )
 
 var th155id = [19]byte{0x57, 0x09, 0xf6, 0x67, 0xf0, 0xfd, 0x4b, 0xd0, 0xb9, 0x9a, 0x74, 0xf8, 0x38, 0x33, 0x81, 0x88, 0x00, 0x00, 0x00}
-var th155SpecConf = [113]byte{0x9c, 0x00, 0x00, 0x00, 0x78, 0x9c, 0x45, 0xcd, 0x4b, 0x0a, 0x80, 0x30, 0x0c, 0x04, 0xd0,
-	0x54, 0x2c, 0x8a, 0x6e, 0xba, 0xf3, 0x78, 0x12, 0xa5, 0xa0, 0xd0, 0x0f, 0xd4, 0xfa, 0x39, 0x93, 0x97, 0xd4, 0x89,
-	0x88, 0xae, 0x66, 0x78, 0x49, 0x88, 0x21, 0xaa, 0x6b, 0x22, 0x9a, 0x97, 0x7e, 0xe7, 0x3c, 0x4e, 0xe8, 0x8a, 0x0c,
-	0x50, 0x03, 0xed, 0x91, 0x13, 0x2b, 0x88, 0x40, 0x0b, 0x60, 0xe7, 0xe2, 0xfe, 0x2f, 0x3e, 0x5e, 0xc2, 0x03, 0x7b,
-	0x2b, 0x1d, 0xf5, 0x39, 0x6e, 0x90, 0x03, 0xe7, 0xec, 0x6c, 0x1f, 0x56, 0x5f, 0x10, 0x69, 0xf5, 0x4e, 0x2a, 0xe4,
-	0x66, 0xd3, 0x32, 0xc7, 0x20, 0x7c, 0x9d, 0xdd, 0xf7, 0x6d, 0x8c, 0x2e, 0x26, 0x41, 0xb9, 0x96, 0xaf, 0x37, 0x7b,
-	0x90, 0x17, 0xe6}
+
+// version [123:131]
+var th155ConfOrig = [156]C.uchar{0x10, 0x00, 0x00, 0x08, 0x08, 0x00, 0x00, 0x00, 0x69, 0x73, 0x5f, 0x77, 0x61, 0x74, 0x63, 0x68,
+	0x08, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 0x00, 0x08, 0x05, 0x00, 0x00, 0x00, 0x65, 0x78, 0x74, 0x72, 0x61, 0x01, 0x00,
+	0x00, 0x01, 0x10, 0x00, 0x00, 0x08, 0x0b, 0x00, 0x00, 0x00, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x5f, 0x77, 0x61, 0x74, 0x63,
+	0x68, 0x08, 0x00, 0x00, 0x01, 0x01, 0x10, 0x00, 0x00, 0x08, 0x04, 0x00, 0x00, 0x00, 0x6e, 0x61, 0x6d, 0x65, 0x10, 0x00,
+	0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x08, 0x0a, 0x00, 0x00, 0x00, 0x62, 0x61, 0x74, 0x74, 0x6c, 0x65,
+	0x5f, 0x6e, 0x75, 0x6d, 0x02, 0x00, 0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00,
+	0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x10, 0x00, 0x00, 0x08, 0x05,
+	0x00, 0x00, 0x00, 0x63, 0x6f, 0x6c, 0x6f, 0x72, 0x02, 0x00, 0x00, 0x05, 0x0a, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x01}
 
 func zlibDataDecodeError(l int, d []byte) string {
 	if len(d) < 3 || d[0] != 0x78 || d[1] != 0x9c {
@@ -124,6 +160,85 @@ func zlibDataDecodeError(l int, d []byte) string {
 	}
 
 	return dataStr
+}
+
+func zlibDataDecodeSignConfVersion(l int, d []byte) error {
+	if len(d) < 3 || d[0] != 0x78 || d[1] != 0x9c {
+		return errors.New("NOT_ZLIB_DATA_ERROR")
+	}
+
+	b := bytes.NewBuffer(d)
+	r, err := zlib.NewReader(b)
+	if err != nil {
+		return err
+	}
+
+	ans := make([]byte, l*2)
+	n, err := r.Read(ans)
+	if err != io.EOF {
+		return err
+	}
+	_ = r.Close()
+
+	if l != n {
+		return errors.New("ZLIB_LENGTH_NOT_MATCH_ERROR")
+	}
+
+	i, j, s := 0, 0, 0
+	for j < n {
+		switch s {
+		case 0:
+			if ans[j] == 0x10 {
+				s++
+			} else {
+				s = 0
+			}
+		case 1, 2:
+			if ans[j] == 0x00 {
+				s++
+			} else {
+				s = 0
+			}
+		case 3:
+			if ans[j] == 0x08 {
+				s++
+			} else {
+				s = 0
+			}
+		case 4:
+			nl := utils.LittleIndia2Int(ans[j : j+4])
+			i = j + 4 + nl
+			if string(ans[j+4:i]) == "version" {
+				for k, l := i, 123; l < 131; {
+					th155ConfOrig[l] = (C.uchar)(ans[k])
+
+					l++
+					k++
+				}
+				return nil
+			}
+
+			s = 0
+		}
+
+		j++
+	}
+
+	return errors.New("VERSION_NOT_FOUND_ERROR")
+}
+
+func zlibDataEncodeConf() (int, []byte) {
+	var cLen C.size_t = 0
+	var cAns *C.uchar
+	var ans []byte
+
+	C.zlib_encode(156, &th155ConfOrig[0], &cLen, &cAns)
+	cIAns := (*[utils.TransBufSize]C.uchar)(unsafe.Pointer(cAns))
+	for i := 0; i < int(cLen); i++ {
+		ans = append(ans, byte(cIAns[i]))
+	}
+
+	return int(cLen), ans
 }
 
 type Hyouibana struct {
@@ -231,7 +346,21 @@ func (h *Hyouibana) WriteFunc(orig []byte) (bool, []byte) {
 // orig: original data leads with 1 byte of client id
 func (h *Hyouibana) ReadFunc(orig []byte) (bool, []byte) {
 
-	if h.MatchStatus != MATCH_WAIT_155 && orig[0] != h.peerId {
+	if h.MatchStatus == MATCH_WAIT_155 {
+		switch type155pkg(orig[1]) {
+
+		case INIT_REQUEST_155:
+			if len(orig)-1 > 40 {
+				err := zlibDataDecodeSignConfVersion(utils.LittleIndia2Int(orig[37:41]), orig[41:])
+				if err != nil {
+					logger155.WithError(err).Warn("INIT_REQUEST decode version failed")
+				}
+			} else {
+				logger155.Warn("INIT_REQUEST here　with strange length ", len(orig)-1)
+			}
+
+		}
+	} else if orig[0] != h.peerId {
 		switch type155pkg(orig[1]) {
 
 		case HOST_T_ACK_155:
@@ -483,12 +612,19 @@ func (h *Hyouibana) GoroutineFunc(tunnelConn interface{}, conn *net.UDPConn) {
 					}
 
 				case MATCH_SPECT_ACK_155:
+					l, th155SpecConf := zlibDataEncodeConf()
+					if l == 0 || th155SpecConf == nil {
+						logger155.WithError(err).Error("Th155 plugin INIT_REQUEST zlib compression error")
+						h.MatchStatus = MATCH_SPECT_ERROR_155
+						break
+					}
 					specData := append([]byte{byte(INIT_REQUEST_155)}, th155id[:]...)
-					specData = append(specData, []byte{byte(h.randId), byte(h.randId >> 8), byte(h.randId >> 16), byte(h.randId >> 24)}...)
-					specData = append(specData, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x71, 0x00, 0x71, 0x00, 0x00, 0x01}...) // spectacle
-					specData = append(specData, th155SpecConf[:]...)
+					specData = append(specData, byte(h.randId), byte(h.randId>>8), byte(h.randId>>16), byte(h.randId>>24))
+					specData = append(specData, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x71, 0x00, 0x71, 0x00, 0x00, 0x01) // spectacle
+					specData = append(specData, 0x9c, 0x00, 0x00, 0x00)                                                 // 156
+					specData = append(specData, th155SpecConf[:l]...)
 
-					_, err := hostConn.Write(specData)
+					_, err = hostConn.Write(specData)
 					if err == nil {
 						connSucc = time.Now()
 					} else {
