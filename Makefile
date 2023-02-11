@@ -1,31 +1,19 @@
 
+VERSION:=0.0.12
+BUILD_ARCH=$(shell go env GOARCH)
+BUILD_OS=$(shell go env GOOS)
+
 all:
 	export GOPATH=${HOME}/go
-	go build -o ./build/thlink-broker ./broker/
-	go build -o ./build/thlink-client ./client/
-
-gui:
-	export GOPATH=${HOME}/go
-	go build -o ./build/thlink-client-gtk ./client-gtk3/
-
-static:
-	export GOPATH=${HOME}/go
-	CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o ./build/thlink-broker-amd64-linux ./broker/
-	CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o ./build/thlink-client-amd64-linux ./client/
-
-loong64:
-	export GOPATH=${HOME}/go
-	GOOS=linux GOARCH=loong64 go build -o ./build/thlink-broker-loong64-linux ./broker/
-	GOOS=linux GOARCH=loong64 go build -o ./build/thlink-client-loong64-linux ./client/
-
-windows:
-	export GOPATH=${HOME}/go
-	GOOS=windows GOARCH=amd64 go build -o ./build/thlink-broker-amd64-windows.exe ./broker/
-	GOOS=windows GOARCH=amd64 go build -o ./build/thlink-client-amd64-windows.exe ./client/
+	# go build -o ./build/thlink-broker ./broker/
+	CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o ./build/thlink-broker-v${VERSION}-${BUILD_ARCH}-${BUILD_OS} ./broker/
+	go build -o ./build/thlink-client-v${VERSION}-${BUILD_ARCH}-${BUILD_OS} ./client/
+	go build -o ./build/thlink-client-gtk-v${VERSION}-${BUILD_ARCH}-${BUILD_OS} ./client-gtk3/
 
 test:
 	go test ./utils
 	go test ./broker/lib
+	go test ./client/lib
 
 clean:
 	rm -rf ./build
