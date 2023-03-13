@@ -32,6 +32,10 @@ type Client struct {
 	peerHost string
 }
 
+type BrokerStatus struct {
+	UserCount int
+}
+
 // New set up new client
 func New(localPort int, serverHost string, tunnelType string) (*Client, error) {
 
@@ -113,6 +117,55 @@ func (c *Client) Ping() time.Duration {
 	delay := timeResp.Sub(timeSend)
 
 	return delay
+
+}
+
+// BrokerStatus get broker status data
+func (c *Client) BrokerStatus() BrokerStatus {
+
+	buf := make([]byte, utils.CmdBufSize)
+	status := BrokerStatus{UserCount: -1}
+
+	// dial port
+	conn, err := net.DialTimeout("tcp", c.serverHost, time.Millisecond*500)
+	if err != nil {
+		logger.WithError(err).Error("Cannot connect to broker")
+		return status
+	}
+
+	// send BROKER_STATUS
+	_ = conn.SetWriteDeadline(time.Now().Add(time.Millisecond * 500))
+	_, err = conn.Write(utils.NewDataFrame(utils.BROKER_STATUS, nil))
+	_ = conn.SetWriteDeadline(time.Time{})
+	if err != nil {
+		_ = conn.Close()
+		logger.WithError(err).Error("Send BROKER_STATUS failed")
+		return status
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
+	n, err := conn.Read(buf)
+	_ = conn.SetReadDeadline(time.Time{})
+	if err != nil {
+		_ = conn.Close()
+		logger.Info("Broker may not support BROKER_STATUS command")
+		return status
+	}
+	_ = conn.Close()
+
+	// parse response
+	dataStream := utils.NewDataStream()
+	dataStream.Append(buf[:n])
+	if !dataStream.Parse() || dataStream.Type() != utils.BROKER_STATUS {
+		logger.Error("Invalid PING response from server")
+		return status
+	}
+
+	data := dataStream.Data()
+	if n >= 4 {
+		status.UserCount = int(data[0])<<24 | int(data[1])<<16 | int(data[2])<<8 | int(data[3])
+	}
+
+	return status
 
 }
 

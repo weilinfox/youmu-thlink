@@ -79,6 +79,9 @@ func main() {
 		logger.Warn("Broker tunnel version code not match, there may have compatible issue")
 	}
 
+	bStatus := c.BrokerStatus()
+	logger.Infof("Currently %d user(s) on broker", bStatus.UserCount)
+
 	err = c.Connect()
 	if err != nil {
 		logger.WithError(err).Fatal("Client connect error")
