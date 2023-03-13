@@ -80,6 +80,7 @@ const (
 	BROKER_INFO                     // BROKER_INFO info of this broker
 	VERSION                         // VERSION of tunnel
 	RUBBISH                         // RUBBISH nobody care about this package
+	BROKER_STATUS                   // BROKER_STATUS status of broker
 )
 
 // NewDataStream return a empty data stream parser

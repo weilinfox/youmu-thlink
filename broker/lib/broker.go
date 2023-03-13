@@ -408,6 +408,13 @@ func Main(listenAddr string, upperAddr string) {
 				version = append(version, []byte(utils.Version)...)
 				_, err = conn.Write(utils.NewDataFrame(utils.VERSION, version))
 
+			case utils.BROKER_STATUS:
+				// broker status
+				// 32bits tunnel count
+				tunnelCount := len(peers)
+				status := []byte{byte(tunnelCount >> 24), byte(tunnelCount >> 16), byte(tunnelCount >> 8), byte(tunnelCount)}
+				_, err = conn.Write(utils.NewDataFrame(utils.BROKER_STATUS, status))
+
 			default:
 				logger.Warn("RawData data invalid")
 			}
