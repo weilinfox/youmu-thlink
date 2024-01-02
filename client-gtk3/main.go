@@ -323,7 +323,7 @@ func onAppActivate(app *gtk.Application) {
 	}
 	pluginLabel.SetHAlign(gtk.ALIGN_START)
 
-	pluginRadioBox, err := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 50)
+	pluginRadioBox, err := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 10)
 	if err != nil {
 		logger.WithError(err).Fatal("Could not create plugin radio box.")
 	}
@@ -347,6 +347,7 @@ func onAppActivate(app *gtk.Application) {
 		if r.GetActive() {
 			clientStatus.pluginNum = 123
 			clientStatus.userConfigChange = true
+			localPortEntry.SetText(strconv.Itoa(client.DefaultLocalPort))
 			logger.Debug("Plugin change to 123")
 		}
 	})
@@ -359,10 +360,24 @@ func onAppActivate(app *gtk.Application) {
 		if r.GetActive() {
 			clientStatus.pluginNum = 155
 			clientStatus.userConfigChange = true
+			localPortEntry.SetText(strconv.Itoa(client.DefaultLocalPort))
 			logger.Debug("Plugin change to 155")
 		}
 	})
 	pluginRadioBox.Add(pluginRadio155)
+	pluginRadioLakey, err := gtk.RadioButtonNewWithLabelFromWidget(pluginRadio123, "Lakey")
+	if err != nil {
+		logger.WithError(err).Fatal("Could not create plugin radio button lakey.")
+	}
+	pluginRadioLakey.Connect("toggled", func(r *gtk.RadioButton) {
+		if r.GetActive() {
+			clientStatus.pluginNum = 1
+			clientStatus.userConfigChange = true
+			localPortEntry.SetText("3010")
+			logger.Debug("Plugin change to 1")
+		}
+	})
+	pluginRadioBox.Add(pluginRadioLakey)
 	pluginRadioBox.SetHAlign(gtk.ALIGN_CENTER)
 
 	// peer address label
